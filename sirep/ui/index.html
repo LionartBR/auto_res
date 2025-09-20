@@ -177,8 +177,10 @@ function syncLogHeight(){
   const offsetTop=logElement.offsetTop+(parseFloat(logStyle.marginTop)||0);
   const bottomSpacing=(parseFloat(logStyle.marginBottom)||0)+(parseFloat(asideStyle.paddingBottom)||0);
   const available=Math.max(0,mainRect.height-offsetTop-bottomSpacing);
-  logElement.style.maxHeight=`${available}px`;
-  logElement.style.height="";
+  const size=`${available}px`;
+  logElement.style.maxHeight=size;
+  logElement.style.minHeight=size;
+  logElement.style.height=size;
 }
 function scheduleLogSync(){
   if(logHeightFrame!==null) return;

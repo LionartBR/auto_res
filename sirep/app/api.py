@@ -117,7 +117,10 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
 def captura_ocorrencias(pagina: int = 1, tamanho: int = 10):
     db = SessionLocal()
     try:
-        q = db.query(DiscardedPlan).order_by(DiscardedPlan.id.desc())
+        q = db.query(DiscardedPlan).order_by(
+            DiscardedPlan.saldo.desc().nullslast(),
+            DiscardedPlan.id.desc(),
+        )
         total = q.count()
         raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
         items = [

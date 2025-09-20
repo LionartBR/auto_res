@@ -123,7 +123,14 @@ class CapturaService:
         if self._status.estado in ("executando", "pausado"):
             logger.info("captura já em %s", self._status.estado)
             return
-        self._status = CapturaStatus(estado="executando")
+
+        historico_anterior = list(self._status.historico)
+        ultima_atualizacao = self._status.ultima_atualizacao
+        self._status = CapturaStatus(
+            estado="executando",
+            historico=historico_anterior,
+            ultima_atualizacao=ultima_atualizacao,
+        )
 
         loop = self._ensure_loop()
         def prepare_events() -> None:
@@ -196,6 +203,12 @@ class CapturaService:
         finally:
             if self._status.estado != "pausado":
                 self._status.estado = "concluido"
+                self._registrar_historico(
+                    numero_plano="",
+                    progresso=4,
+                    etapa="",
+                    mensagem="Processamento concluído.",
+                )
             self._loop_task = None
             self._pause_evt = None
             self._stop_evt = None

@@ -19,9 +19,9 @@
     .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
     .content{padding:16px}
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    button{appearance:none;border:0;background:linear-gradient(90deg,var(--hdr-a),var(--hdr-b));color:#fff;padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:0 6px 16px rgba(0,63,145,.22);transition:transform .15s ease,box-shadow .15s ease}
-    button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 20px rgba(0,63,145,.28)}
-    button.primary{background:linear-gradient(90deg,var(--hdr-b),var(--hdr-c));box-shadow:0 8px 20px rgba(16,140,188,.25)}
+    button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+    button.primary{border:0;color:#fff;background:linear-gradient(90deg,var(--hdr-b),var(--hdr-c));box-shadow:0 6px 16px rgba(16,140,188,.22);transition:transform .15s ease,box-shadow .15s ease}
+    button.primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 20px rgba(16,140,188,.28)}
     button:disabled{opacity:.5;cursor:not-allowed}
     .muted{color:var(--muted);font-size:12px}
     .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
@@ -184,20 +184,43 @@ const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationF
   ? window.requestAnimationFrame.bind(window)
   : (fn)=>setTimeout(fn,16);
 let logHeightFrame=null;
+function resetLogSizing(){
+  if(logElement){
+    logElement.style.removeProperty("maxHeight");
+    logElement.style.removeProperty("minHeight");
+    logElement.style.removeProperty("height");
+  }
+  if(asideColumn){
+    asideColumn.style.removeProperty("height");
+  }
+}
 function syncLogHeight(){
-  if(!mainColumn||!asideColumn||!logElement) return;
+  if(!mainColumn||!asideColumn||!logElement){
+    resetLogSizing();
+    return;
+  }
+  const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
+  if(isStacked){
+    resetLogSizing();
+    return;
+  }
   const mainRect=mainColumn.getBoundingClientRect();
-  if(mainRect.height<=0) return;
+  if(mainRect.height<=0){
+    resetLogSizing();
+    return;
+  }
+  const asideRect=asideColumn.getBoundingClientRect();
   const asideStyle=getComputedStyle(asideColumn);
   const logStyle=getComputedStyle(logElement);
   const logRect=logElement.getBoundingClientRect();
-  const relativeTop=logRect.top-mainRect.top;
-  const bottomSpacing=(parseFloat(logStyle.marginBottom)||0)+(parseFloat(asideStyle.paddingBottom)||0);
+  const relativeTop=logRect.top-asideRect.top;
+  const bottomSpacing=(parseFloat(logStyle.marginBottom)||0)+(parseFloat(asideStyle.paddingBottom)||0)+(parseFloat(asideStyle.borderBottomWidth)||0);
   const available=Math.max(0,mainRect.height-relativeTop-bottomSpacing);
   const size=`${available}px`;
   logElement.style.maxHeight=size;
   logElement.style.minHeight=size;
   logElement.style.height=size;
+  asideColumn.style.height=`${mainRect.height}px`;
 }
 function scheduleLogSync(){
   if(logHeightFrame!==null) return;

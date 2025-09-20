@@ -133,7 +133,7 @@
 </main>
 
 <script>
-function $(id){ return document.getElementById(id); }
+function $(selector){ return document.querySelector(selector); }
 const fmtMoney=n=>n==null?"":Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const el={
   btnIniciar:$("#btnIniciar"), btnPausar:$("#btnPausar"), btnContinuar:$("#btnContinuar"),

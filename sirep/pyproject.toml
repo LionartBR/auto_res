@@ -1,0 +1,13 @@
+[project]
+name = "sirep"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "pydantic>=2.8.0",
+  "SQLAlchemy>=2.0.32",
+  "pydantic-settings>=2.4.0",
+  "tenacity>=9.0.0",
+  "python-dotenv>=1.0.1",
+]

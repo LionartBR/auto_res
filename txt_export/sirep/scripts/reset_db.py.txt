@@ -1,0 +1,34 @@
+=== SOURCE: sirep/scripts/reset_db.py ===
+from __future__ import annotations
+import os
+from urllib.parse import urlparse
+from sirep.infra.config import settings
+from sirep.infra.db import get_engine
+from sqlalchemy import text
+
+def is_sqlite_file(url: str) -> str | None:
+    if url.startswith("sqlite:///"):
+        path = url.replace("sqlite:///", "", 1)
+        return os.path.abspath(path)
+    return None
+
+def main():
+    sqlite_path = is_sqlite_file(settings.DB_URL)
+    if sqlite_path:
+        if os.path.exists(sqlite_path):
+            os.remove(sqlite_path)
+            print(f"[reset-db] removido arquivo SQLite: {sqlite_path}")
+        else:
+            print(f"[reset-db] arquivo SQLite já não existe: {sqlite_path}")
+    else:
+        # drop & create para outros bancos
+        from sirep.domain.models import Base
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execution_options(isolation_level="AUTOCOMMIT")
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
+        print("[reset-db] schema recriado.")
+
+if __name__ == "__main__":
+    main()

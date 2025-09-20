@@ -1,0 +1,11 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Literal
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="SIREP_", extra="ignore")
+    DB_URL: str = "sqlite:///./sirep.db"
+    RUNTIME_ENV: Literal["dev","prod","test"] = "dev"
+    DRY_RUN: bool = True  # evita efeitos colaterais em stubs
+    LOG_LEVEL: Literal["DEBUG","INFO","WARNING","ERROR"] = "INFO"
+
+settings = Settings()

@@ -1,0 +1,26 @@
+from sirep.services.orchestrator import Orchestrator
+from sirep.domain.enums import Step
+from sirep.infra.db import init_db
+from pathlib import Path
+
+def main() -> None:
+    init_db()
+    steps = [
+        Step.ETAPA_1,
+        Step.ETAPA_2,
+        Step.ETAPA_3,
+        Step.ETAPA_4,
+        Step.ETAPA_10,
+        Step.ETAPA_11,
+        Step.ETAPA_12,
+    ]
+    o = Orchestrator()
+    out = o.run_steps(steps)
+    print(out)
+    for name in ("Rescindidos_CNPJ.txt","Rescindidos_CEI.txt"):
+        p = Path(name)
+        if p.exists():
+            print(f"Gerado: {p} ({p.stat().st_size} bytes)")
+
+if __name__ == "__main__":
+    main()

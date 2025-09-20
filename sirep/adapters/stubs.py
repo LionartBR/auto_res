@@ -1,0 +1,61 @@
+from datetime import datetime
+from typing import Dict, Any, Iterable, List
+from .base import FGEAdapter, SirepAdapter, CEFGDAdapter, CNSAdapter, PIGAdapter
+from sirep.infra.config import settings
+
+# Atenção: estes stubs simulam respostas previsíveis p/ desenvolvimento.
+class FGEStub(FGEAdapter):
+    def listar_planos_presc_sem_974(self) -> Iterable[Dict[str, Any]]:
+        yield {"numero_plano": "PLN001", "tipo": "MENSAL", "situacao": "P. RESC"}
+        yield {"numero_plano": "PLN002", "tipo": "TRIMESTRAL", "situacao": "P. RESC"}
+
+    def obter_saldo_total(self, numero_plano: str) -> float:
+        return 12345.67
+
+    def plano_tem_grde(self, numero_plano: str) -> bool:
+        return numero_plano.endswith("2")
+
+    def listar_debitos_confessados(self, numero_plano: str) -> Iterable[Dict[str, Any]]:
+        return [
+            {"inscricao_tipo": "CNPJ", "inscricao": "00123456000199", "competencia": "2024-05"},
+            {"inscricao_tipo": "CEI", "inscricao": "123456789012", "competencia": "2024-06"},
+        ]
+
+    def consultar_notificado(self, inscricao: str, competencia: str) -> bool:
+        return competencia.endswith("05")
+
+    def executar_rescisao(self, numero_plano: str) -> bool:
+        return not settings.DRY_RUN
+
+class SirepStub(SirepAdapter):
+    _store: Dict[str, Dict[str, Any]] = {}
+
+    def listar_sem_tratamento(self) -> List[Dict[str, Any]]:
+        return [{"numero_plano": k, **v} for k, v in self._store.items() if v.get("status") == "Sem Tratamento"]
+
+    def carga_complementar(self, linhas: List[Dict[str, Any]]) -> None:
+        for l in linhas:
+            self._store[l["CARTEIRA"]] = {
+                "status": "Sem Tratamento",
+                "dados": l,
+            }
+
+    def atualizar_plano(self, numero_plano: str, campos: Dict[str, Any]) -> None:
+        self._store.setdefault(numero_plano, {"status": "Sem Tratamento", "dados": {}})
+        self._store[numero_plano]["dados"].update(campos)
+
+class CEFGDStub(CEFGDAdapter):
+    def plano_e_especial(self, numero_plano: str) -> bool:
+        return numero_plano.endswith("1")
+
+class CNSStub(CNSAdapter):
+    def enviar_comunicacao(self, inscricoes: list[str], titulo: str, corpo: str) -> Dict[str,str]:
+        # Retorna NSU fake. DRY_RUN evita efeitos reais.
+        return {i: "NSU-"+i[-6:] for i in inscricoes}
+
+class PIGStub(PIGAdapter):
+    def pesquisar_guias(self, inscricao: str, competencia_ini: str, competencia_fim: str, data_ini: str) -> list[Dict[str,Any]]:
+        return [{"inscricao": inscricao, "competencia": competencia_ini, "valor": 100.0, "tipo": "GRDE", "data_pagamento": str(datetime.utcnow().date())}]
+
+    def lancar_guia(self, registro: Dict[str, Any]) -> bool:
+        return not settings.DRY_RUN

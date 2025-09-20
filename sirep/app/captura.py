@@ -236,13 +236,26 @@ class CapturaService:
                 return
             st.em_progresso[numero_plano].progresso = 4
 
-            situacao_final = "P. RESC" if random.random() >= 0.05 else random.choice(SITS_ALT)
+            if random.random() < 0.05:
+                situacao_final = random.choice(SITS_ALT)
+                with SessionLocal() as db:
+                    OccurrenceRepository(db).add(
+                        numero_plano=numero_plano,
+                        situacao=situacao_final,
+                        cnpj=cnpj,
+                        tipo=tipo,
+                        saldo=saldo,
+                        dt_situacao_atual=hoje,
+                    ); db.commit()
+                st.falhas += 1; st.processados += 1
+                return
+
             with SessionLocal() as db:
                 plans = PlanRepository(db); events = EventRepository(db)
                 p = plans.upsert(
                     numero_plano=numero_plano,
                     gifug="MZ",
-                    situacao_atual=situacao_final,
+                    situacao_atual="P. RESC",
                     situacao_anterior="P. RESC",
                     dias_em_atraso=random.randint(90, 120),
                     tipo=tipo,

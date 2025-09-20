@@ -36,6 +36,16 @@ class Event(Base):
     level = Column(String(16), nullable=False, default="INFO")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+class CaptureEvent(Base):
+    __tablename__ = "capture_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    numero_plano = Column(String(32), nullable=False)
+    mensagem = Column(String(255), nullable=False)
+    progresso = Column(Integer, nullable=False)
+    etapa = Column(String(64), nullable=False)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+
 class JobRun(Base):
     __tablename__ = "job_runs"
     id = Column(Integer, primary_key=True, autoincrement=True)

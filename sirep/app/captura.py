@@ -10,7 +10,12 @@ from datetime import datetime, timezone, date
 from typing import Dict, List, Literal, Optional
 
 from sirep.infra.db import SessionLocal
-from sirep.infra.repositories import PlanRepository, EventRepository, OccurrenceRepository
+from sirep.infra.repositories import (
+    PlanRepository,
+    EventRepository,
+    OccurrenceRepository,
+    CaptureEventRepository,
+)
 from sirep.domain.enums import PlanStatus, Step
 
 logger = logging.getLogger(__name__)
@@ -59,8 +64,10 @@ class CapturaService:
         self._step_min = 0.40
         self._step_max = 0.80
         self._history_limit = 200
+        self._history_loaded = False
 
-    def status(self) -> CapturaStatus: 
+    def status(self) -> CapturaStatus:
+        self._ensure_history_loaded()
         return self._status
 
     def reset_estado(self) -> None:
@@ -68,6 +75,7 @@ class CapturaService:
         self._loop_task = None
         self._pause_evt = None
         self._stop_evt = None
+        self._history_loaded = False
 
     @staticmethod
     async def _call_sync(func) -> None:
@@ -120,6 +128,7 @@ class CapturaService:
             fut.result()
 
     def iniciar(self) -> None:
+        self._ensure_history_loaded()
         if self._status.estado in ("executando", "pausado"):
             logger.info("captura já em %s", self._status.estado)
             return
@@ -248,7 +257,9 @@ class CapturaService:
         etapa: str,
         mensagem: str,
     ) -> None:
-        timestamp = datetime.now(timezone.utc).isoformat()
+        self._ensure_history_loaded()
+        timestamp_dt = datetime.now(timezone.utc)
+        timestamp = timestamp_dt.isoformat()
         evento = PlanoHistorico(
             numero_plano=numero_plano,
             mensagem=mensagem,
@@ -256,11 +267,52 @@ class CapturaService:
             etapa=etapa,
             timestamp=timestamp,
         )
+        try:
+            with SessionLocal() as db:
+                repo = CaptureEventRepository(db)
+                repo.add_event(
+                    numero_plano=numero_plano,
+                    mensagem=mensagem,
+                    progresso=progresso,
+                    etapa=etapa,
+                    timestamp=timestamp_dt,
+                )
+                db.commit()
+        except Exception:
+            logger.exception("erro ao persistir histórico da captura")
         historico = self._status.historico
         historico.append(evento)
         if len(historico) > self._history_limit:
             del historico[: len(historico) - self._history_limit]
         self._status.ultima_atualizacao = timestamp
+
+    def _ensure_history_loaded(self) -> None:
+        if self._history_loaded:
+            return
+        try:
+            with SessionLocal() as db:
+                repo = CaptureEventRepository(db)
+                eventos = repo.get_recent(self._history_limit)
+        except Exception:
+            logger.exception("erro ao carregar histórico da captura")
+            return
+
+        historico: List[PlanoHistorico] = []
+        for ev in reversed(eventos):
+            ts = ev.timestamp.isoformat() if ev.timestamp else None
+            historico.append(
+                PlanoHistorico(
+                    numero_plano=ev.numero_plano,
+                    mensagem=ev.mensagem,
+                    progresso=ev.progresso,
+                    etapa=ev.etapa,
+                    timestamp=ts or datetime.now(timezone.utc).isoformat(),
+                )
+            )
+        self._status.historico = historico
+        if historico:
+            self._status.ultima_atualizacao = historico[-1].timestamp
+        self._history_loaded = True
 
     async def _processar_plano(self, numero_plano: str) -> None:
         st = self._status

@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from sirep.app.api import app
-from sirep.domain.models import DiscardedPlan, Plan
+from sirep.domain.models import CaptureEvent, DiscardedPlan, Plan
 from sirep.infra.db import SessionLocal, init_db
 
 
@@ -14,6 +14,7 @@ def client_with_data():
     with SessionLocal() as db:
         db.query(DiscardedPlan).delete()
         db.query(Plan).delete()
+        db.query(CaptureEvent).delete()
         db.commit()
 
         plan = Plan(

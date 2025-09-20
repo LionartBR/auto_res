@@ -23,7 +23,16 @@ SITS_ALT = ("SIT ESPECIAL", "LIQUIDADO", "RESCINDIDO", "GRDE Emitida")
 class PlanoProgresso:
     numero_plano: str
     progresso: int = 0
-    etapas: List[str] = field(default_factory=lambda: ["Captura","Situação especial","Liquidação anterior","GRDE"])
+    etapas: List[str] = field(default_factory=lambda: ["Captura", "Situação especial", "Liquidação anterior", "GRDE"])
+
+
+@dataclass
+class PlanoHistorico:
+    numero_plano: str
+    mensagem: str
+    progresso: int
+    etapa: str
+    timestamp: str
 
 @dataclass
 class CapturaStatus:
@@ -34,6 +43,7 @@ class CapturaStatus:
     em_progresso: Dict[str, PlanoProgresso] = field(default_factory=dict)
     ultima_atualizacao: Optional[str] = None
     last_error: Optional[str] = None  # <<< surfaced
+    historico: List[PlanoHistorico] = field(default_factory=list)
 
 class CapturaService:
     def __init__(self) -> None:
@@ -48,6 +58,7 @@ class CapturaService:
         self._velocidade = 1
         self._step_min = 0.40
         self._step_max = 0.80
+        self._history_limit = 200
 
     def status(self) -> CapturaStatus: 
         return self._status
@@ -190,6 +201,35 @@ class CapturaService:
             self._stop_evt = None
             logger.info("captura finalizada: %s", self._status.estado)
 
+    def _obter_etapa(self, numero_plano: str, progresso: int) -> str:
+        info = self._status.em_progresso.get(numero_plano)
+        if info and info.etapas:
+            idx = min(max(progresso - 1, 0), len(info.etapas) - 1)
+            return info.etapas[idx]
+        return ""
+
+    def _registrar_historico(
+        self,
+        *,
+        numero_plano: str,
+        progresso: int,
+        etapa: str,
+        mensagem: str,
+    ) -> None:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        evento = PlanoHistorico(
+            numero_plano=numero_plano,
+            mensagem=mensagem,
+            progresso=progresso,
+            etapa=etapa,
+            timestamp=timestamp,
+        )
+        historico = self._status.historico
+        historico.append(evento)
+        if len(historico) > self._history_limit:
+            del historico[: len(historico) - self._history_limit]
+        self._status.ultima_atualizacao = timestamp
+
     async def _processar_plano(self, numero_plano: str) -> None:
         st = self._status
         try:
@@ -203,17 +243,24 @@ class CapturaService:
             st.em_progresso[numero_plano].progresso = 1
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            st.em_progresso[numero_plano].progresso = 2
             if random.random() < 0.05:
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
                         numero_plano=numero_plano, situacao="SIT ESPECIAL", cnpj=cnpj,
                         tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
                     ); db.commit()
+                self._registrar_historico(
+                    numero_plano=numero_plano,
+                    progresso=2,
+                    etapa=self._obter_etapa(numero_plano, 2),
+                    mensagem="Descartado: SIT ESPECIAL",
+                )
                 st.falhas += 1; st.processados += 1
                 return
-            st.em_progresso[numero_plano].progresso = 2
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            st.em_progresso[numero_plano].progresso = 3
             if random.random() < 0.04:
                 sit = random.choice(("LIQUIDADO","RESCINDIDO"))
                 with SessionLocal() as db:
@@ -221,9 +268,14 @@ class CapturaService:
                         numero_plano=numero_plano, situacao=sit, cnpj=cnpj,
                         tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
                     ); db.commit()
+                self._registrar_historico(
+                    numero_plano=numero_plano,
+                    progresso=3,
+                    etapa=self._obter_etapa(numero_plano, 3),
+                    mensagem=f"Descartado: {sit}",
+                )
                 st.falhas += 1; st.processados += 1
                 return
-            st.em_progresso[numero_plano].progresso = 3
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
             if random.random() < 0.04:
@@ -232,6 +284,12 @@ class CapturaService:
                         numero_plano=numero_plano, situacao="GRDE Emitida", cnpj=cnpj,
                         tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
                     ); db.commit()
+                self._registrar_historico(
+                    numero_plano=numero_plano,
+                    progresso=4,
+                    etapa=self._obter_etapa(numero_plano, 4),
+                    mensagem="Descartado: GRDE Emitida",
+                )
                 st.falhas += 1; st.processados += 1
                 return
             st.em_progresso[numero_plano].progresso = 4
@@ -247,6 +305,12 @@ class CapturaService:
                         saldo=saldo,
                         dt_situacao_atual=hoje,
                     ); db.commit()
+                self._registrar_historico(
+                    numero_plano=numero_plano,
+                    progresso=4,
+                    etapa=self._obter_etapa(numero_plano, 4),
+                    mensagem=f"Descartado: {situacao_final}",
+                )
                 st.falhas += 1; st.processados += 1
                 return
 
@@ -270,11 +334,26 @@ class CapturaService:
                 db.commit()
 
             st.novos += 1; st.processados += 1
+            self._registrar_historico(
+                numero_plano=numero_plano,
+                progresso=4,
+                etapa=self._obter_etapa(numero_plano, 4),
+                mensagem="Capturado com sucesso",
+            )
 
         except Exception:
             st.falhas += 1
             st.last_error = traceback.format_exc()
             logger.exception("erro ao processar plano %s", numero_plano)
+            info_atual = st.em_progresso.get(numero_plano)
+            progresso_atual = info_atual.progresso if info_atual else 0
+            etapa = self._obter_etapa(numero_plano, progresso_atual or 1)
+            self._registrar_historico(
+                numero_plano=numero_plano,
+                progresso=progresso_atual,
+                etapa=etapa,
+                mensagem="Falha inesperada",
+            )
         finally:
             st.em_progresso.pop(numero_plano, None)
             st.ultima_atualizacao = datetime.now(timezone.utc).isoformat()

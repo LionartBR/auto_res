@@ -133,6 +133,7 @@
 </main>
 
 <script>
+function $(id){ return document.getElementById(id); }
 const fmtMoney=n=>n==null?"":Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const el={
   btnIniciar:$("#btnIniciar"), btnPausar:$("#btnPausar"), btnContinuar:$("#btnContinuar"),
@@ -148,7 +149,6 @@ let pagina=1,tamanho=10,totalPlanos=0,maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1;
 let timer=null;
 
-function $(id){return document.getElementById(id)}
 function setBar(p){el.barTotal.style.width=`${p}%`;el.lblTotal.textContent=`${p}% concluído`}
 function stateButtons(estado){
   const s=String(estado);

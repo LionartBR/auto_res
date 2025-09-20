@@ -1,4 +1,4 @@
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Any, Optional, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update
 from sirep.domain.models import Plan, Event, JobRun, DiscardedPlan
@@ -27,12 +27,51 @@ class EventRepository:
         self.db.add(Event(plan_id=plan_id, step=step, message=message, level=level))
 
 class JobRunRepository:
-    def __init__(self, db: Session): self.db = db
-    def start(self, step: Step, input_hash: str) -> JobRun:
-        jr = JobRun(step=step, input_hash=input_hash)
-        self.db.add(jr); self.db.flush(); return jr
-    def finish(self, job: JobRun, status: str, info: str|None=None):
-        job.status = status; job.info = info
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def start(
+        self,
+        *,
+        job_name: str,
+        step: Optional[str] = None,
+        input_hash: Optional[str] = None,
+        info: Optional[Dict[str, Any]] = None,
+        status: str = "RUNNING",
+    ) -> JobRun:
+        """Cria um JobRun com os campos esperados pelo pipeline."""
+        jr = JobRun(
+            job_name=job_name,
+            step=step,
+            input_hash=input_hash,
+            info=info,
+            status=status,
+            started_at=datetime.now(timezone.utc),
+        )
+        self.db.add(jr)
+        self.db.flush()  # garante jr.id
+        return jr
+
+    def finish(
+        self,
+        job_run_id: int,
+        *,
+        status: str = "OK",
+        info_update: Optional[Dict[str, Any]] = None,
+    ) -> JobRun:
+        jr = self.db.query(JobRun).filter(JobRun.id == job_run_id).one()
+        jr.status = status
+        jr.finished_at = datetime.now(timezone.utc)
+        if info_update:
+            # mescla info antiga com update simples (dict shallow)
+            merged = dict(jr.info or {})
+            merged.update(info_update)
+            jr.info = merged
+        self.db.add(jr)
+        return jr
+
+    def fail(self, job_run_id: int, *, info_update: Optional[Dict[str, Any]] = None) -> JobRun:
+        return self.finish(job_run_id, status="FAIL", info_update=info_update)
 
 class OccurrenceRepository:
     def __init__(self, db: Session): self.db = db

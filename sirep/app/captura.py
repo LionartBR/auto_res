@@ -1,5 +1,5 @@
 from __future__ import annotations
-import asyncio, random, traceback
+import asyncio, random, traceback, logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
 from typing import List, Dict, Optional, Literal
@@ -7,6 +7,8 @@ from typing import List, Dict, Optional, Literal
 from sirep.infra.db import SessionLocal
 from sirep.infra.repositories import PlanRepository, EventRepository, OccurrenceRepository
 from sirep.domain.enums import PlanStatus, Step
+
+logger = logging.getLogger(__name__)
 
 Estado = Literal["ocioso", "executando", "pausado", "concluido"]
 TIPOS = ("ADM", "INS", "JUD", "AI", "AJ")
@@ -26,9 +28,9 @@ class CapturaStatus:
     falhas: int = 0
     em_progresso: Dict[str, PlanoProgresso] = field(default_factory=dict)
     ultima_atualizacao: Optional[str] = None
+    last_error: Optional[str] = None  # <<< surfaced
 
 class CapturaService:
-    """Simulação ~1m20s com descartes e 5% de situações alternativas nos aprovados."""
     def __init__(self) -> None:
         self._status = CapturaStatus()
         self._loop_task: Optional[asyncio.Task] = None
@@ -46,8 +48,8 @@ class CapturaService:
         self._status = CapturaStatus()
 
     def iniciar(self) -> None:
-        # evita múltiplas execuções
         if self._status.estado in ("executando", "pausado"):
+            logger.info("captura já em %s", self._status.estado)
             return
         self._status = CapturaStatus(estado="executando")
         self._stop_evt = asyncio.Event()
@@ -55,25 +57,23 @@ class CapturaService:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            # fallback (caso chamado fora de coroutine, mas em uvicorn deve haver loop ativo)
             loop = asyncio.get_event_loop()
-        # >>> criar task no loop corrente (evita "sumir" no Py3.13) <<<
         self._loop_task = loop.create_task(self._run(), name="captura-run")
-        print("[captura] iniciado")
+        logger.info("captura iniciada")
 
     def pausar(self) -> None:
         if self._status.estado != "executando":
             return
         self._status.estado = "pausado"
         self._pause_evt.clear()
-        print("[captura] pausado")
+        logger.info("captura pausada")
 
     def continuar(self) -> None:
         if self._status.estado != "pausado":
             return
         self._status.estado = "executando"
         self._pause_evt.set()
-        print("[captura] continuando")
+        logger.info("captura continuada")
 
     async def _run(self) -> None:
         try:
@@ -82,26 +82,26 @@ class CapturaService:
                 await self._pause_evt.wait()
                 for _ in range(min(self._velocidade, alvo - gerados)):
                     numero = self._gerar_numero()
-                    # cada plano em task própria
                     try:
                         asyncio.get_running_loop().create_task(
                             self._processar_plano(numero), name=f"plano-{numero}"
                         )
                     except Exception:
-                        print("[captura] ERRO ao criar task de plano:\n", traceback.format_exc())
+                        self._status.last_error = traceback.format_exc()
+                        logger.exception("erro ao criar task do plano %s", numero)
                     gerados += 1
                 await asyncio.sleep(1.0)
 
-            # aguarda tarefas pendentes terminarem (ou pausa)
             while self._status.estado != "pausado" and any(p.progresso < 4 for p in self._status.em_progresso.values()):
                 await asyncio.sleep(0.2)
 
         except Exception:
-            print("[captura] ERRO no loop principal:\n", traceback.format_exc())
+            self._status.last_error = traceback.format_exc()
+            logger.exception("erro no loop principal da captura")
         finally:
             if self._status.estado != "pausado":
                 self._status.estado = "concluido"
-            print("[captura] finalizado, estado:", self._status.estado)
+            logger.info("captura finalizada: %s", self._status.estado)
 
     async def _processar_plano(self, numero_plano: str) -> None:
         st = self._status
@@ -112,48 +112,43 @@ class CapturaService:
             hoje: date = datetime.now(timezone.utc).date()
             tipo = random.choice(TIPOS)
 
-            # Etapa 1
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
             st.em_progresso[numero_plano].progresso = 1
 
-            # Etapa 2: 10% descarta → SIT ESPECIAL
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
             if random.random() < 0.10:
                 with SessionLocal() as db:
-                    occ = OccurrenceRepository(db)
-                    occ.add(numero_plano=numero_plano, situacao="SIT ESPECIAL", cnpj=cnpj,
-                            tipo=tipo, saldo=saldo, dt_situacao_atual=hoje)
-                    db.commit()
+                    OccurrenceRepository(db).add(
+                        numero_plano=numero_plano, situacao="SIT ESPECIAL", cnpj=cnpj,
+                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
+                    ); db.commit()
                 st.falhas += 1; st.processados += 1
                 return
             st.em_progresso[numero_plano].progresso = 2
 
-            # Etapa 3: 8% descarta → LIQUIDADO/RESCINDIDO
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
             if random.random() < 0.08:
                 sit = random.choice(("LIQUIDADO","RESCINDIDO"))
                 with SessionLocal() as db:
-                    occ = OccurrenceRepository(db)
-                    occ.add(numero_plano=numero_plano, situacao=sit, cnpj=cnpj,
-                            tipo=tipo, saldo=saldo, dt_situacao_atual=hoje)
-                    db.commit()
+                    OccurrenceRepository(db).add(
+                        numero_plano=numero_plano, situacao=sit, cnpj=cnpj,
+                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
+                    ); db.commit()
                 st.falhas += 1; st.processados += 1
                 return
             st.em_progresso[numero_plano].progresso = 3
 
-            # Etapa 4: 12% descarta → GRDE Emitida
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
             if random.random() < 0.12:
                 with SessionLocal() as db:
-                    occ = OccurrenceRepository(db)
-                    occ.add(numero_plano=numero_plano, situacao="GRDE Emitida", cnpj=cnpj,
-                            tipo=tipo, saldo=saldo, dt_situacao_atual=hoje)
-                    db.commit()
+                    OccurrenceRepository(db).add(
+                        numero_plano=numero_plano, situacao="GRDE Emitida", cnpj=cnpj,
+                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
+                    ); db.commit()
                 st.falhas += 1; st.processados += 1
                 return
             st.em_progresso[numero_plano].progresso = 4
 
-            # Aprovado → 95% P. RESC, 5% alternativo
             situacao_final = "P. RESC" if random.random() >= 0.05 else random.choice(SITS_ALT)
             with SessionLocal() as db:
                 plans = PlanRepository(db); events = EventRepository(db)
@@ -168,7 +163,7 @@ class CapturaService:
                     saldo=saldo,
                     cmb_ajuste="", justificativa="", matricula="",
                     dt_parcela_atraso=None, representacao="",
-                    status=PlanStatus.PASSIVEL_RESC,     # <- precisa existir em models.Plan (coluna status)
+                    status=PlanStatus.PASSIVEL_RESC,
                     tipo_parcelamento=tipo, saldo_total=saldo,
                 )
                 events.log(p.id, Step.ETAPA_1, "Capturado via simulação")
@@ -178,14 +173,15 @@ class CapturaService:
 
         except Exception:
             st.falhas += 1
-            print(f"[captura] ERRO ao processar plano {numero_plano}:\n", traceback.format_exc())
+            st.last_error = traceback.format_exc()
+            logger.exception("erro ao processar plano %s", numero_plano)
         finally:
             st.em_progresso.pop(numero_plano, None)
             st.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
 
     def _gerar_numero(self) -> str:
         ano = random.randint(2003, 2025)
-        sufixo = random.randint(1010, 96052)  # 5 dígitos
+        sufixo = random.randint(1010, 96052)
         return f"{ano:04d}{sufixo:05d}"
 
     def _gerar_cnpj(self) -> str:

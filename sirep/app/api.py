@@ -1,80 +1,120 @@
-from fastapi import FastAPI, Query
-from fastapi.responses import RedirectResponse
+from __future__ import annotations
+import logging
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from typing import Optional
-from datetime import datetime
+from sqlalchemy.exc import SQLAlchemyError
+
 from sirep import __version__
 from sirep.infra.db import init_db, SessionLocal
-from sirep.domain.models import Plan, Event, DiscardedPlan
+from sirep.infra.logging import setup_logging
+from sirep.domain.models import Plan, DiscardedPlan
 from sirep.app.captura import captura
 
+logger = logging.getLogger(__name__)
+
+setup_logging()        # <<< logs em arquivo + console
+init_db()              # garante schema
+
 app = FastAPI(title="SIREP 2.0", version=__version__)
-init_db()
 app.mount("/app", StaticFiles(directory="ui", html=True), name="ui")
 
 @app.get("/")
-def root(): return RedirectResponse(url="/app/")
+def root():
+    return RedirectResponse(url="/app/")
 
 @app.get("/health")
-def health(): return {"status": "ok"}
+def health():
+    return {"status": "ok"}
 
 @app.get("/version")
-def version(): return {"version": __version__}
+def version():
+    return {"version": __version__}
 
-# Controle
+# ---- Handlers globais de erro ----
+@app.exception_handler(RequestValidationError)
+async def validation_handler(request: Request, exc: RequestValidationError):
+    logger.warning("422 ValidationError %s %s: %s", request.method, request.url.path, exc.errors())
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+@app.exception_handler(SQLAlchemyError)
+async def sa_handler(request: Request, exc: SQLAlchemyError):
+    logger.exception("500 SQLAlchemyError %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "database error"})
+
+@app.exception_handler(Exception)
+async def default_handler(request: Request, exc: Exception):
+    logger.exception("500 Unhandled %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "internal error"})
+
+# ---- Controle de captura ----
 @app.post("/captura/iniciar")
-async def captura_iniciar(): captura.iniciar(); return {"estado": captura.status().estado}
+async def captura_iniciar():
+    captura.iniciar()
+    return {"estado": captura.status().estado}
+
 @app.post("/captura/pausar")
-async def captura_pausar(): captura.pausar(); return {"estado": captura.status().estado}
+async def captura_pausar():
+    captura.pausar()
+    return {"estado": captura.status().estado}
+
 @app.post("/captura/continuar")
-async def captura_continuar(): captura.continuar(); return {"estado": captura.status().estado}
+async def captura_continuar():
+    captura.continuar()
+    return {"estado": captura.status().estado}
 
 @app.get("/captura/status")
 async def captura_status():
     st = captura.status()
-    total_previsto = 50
-    perc = round((st.processados / total_previsto) * 100, 1) if total_previsto else 0.0
-    # contador de ocorrências
     db = SessionLocal()
     try:
         ocorrencias_total = db.query(DiscardedPlan).count()
+        total = db.query(Plan).count()
+        total_passiveis = db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
     finally:
         db.close()
     return {
-        "estado": st.estado, "processados": st.processados, "novos": st.novos, "falhas": st.falhas,
-        "progresso_total": perc,
-        "em_progresso": [{"numero_plano": p.numero_plano, "progresso": p.progresso, "etapas": p.etapas} for p in st.em_progresso.values()],
+        "estado": st.estado,
+        "processados": st.processados,
+        "novos": st.novos,
+        "falhas": st.falhas,
+        "progresso_total": round((st.processados / 50) * 100, 1) if 50 else 0,
+        "em_progresso": [
+            {"numero_plano": p.numero_plano, "progresso": p.progresso, "etapas": p.etapas}
+            for p in st.em_progresso.values()
+        ],
         "ultima_atualizacao": st.ultima_atualizacao,
         "ocorrencias_total": ocorrencias_total,
+        "total": total,
+        "total_passiveis": total_passiveis,
+        "last_error": st.last_error,  # <<< surfaced
     }
 
-# Dados: Planos capturados (com total e total_passiveis)
 @app.get("/captura/planos")
-def captura_planos(pagina: int = Query(1, ge=1), tamanho: int = Query(10, ge=1, le=200), desde: Optional[str] = None):
+def captura_planos(pagina: int = 1, tamanho: int = 10):
     db = SessionLocal()
     try:
-        q = db.query(Plan)
-        if desde:
-            try:
-                dt = datetime.fromisoformat(desde.replace("Z",""))
-                q = q.filter(Plan.updated_at >= dt)
-            except Exception:
-                ...
+        q = db.query(Plan).order_by(Plan.saldo.desc().nullslast())
         total = q.count()
-        total_passiveis = q.filter(Plan.situacao_atual == "P. RESC").count()
-        items = q.order_by(Plan.saldo.desc().nullslast()).offset((pagina-1)*tamanho).limit(tamanho).all()
+        items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        total_passiveis = db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
         return {"items": items, "total": total, "total_passiveis": total_passiveis}
     finally:
         db.close()
 
-# Dados: Ocorrências (descartados)
 @app.get("/captura/ocorrencias")
-def captura_ocorrencias(pagina: int = Query(1, ge=1), tamanho: int = Query(10, ge=1, le=200)):
+def captura_ocorrencias(pagina: int = 1, tamanho: int = 10):
     db = SessionLocal()
     try:
-        q = db.query(DiscardedPlan)
+        q = db.query(DiscardedPlan).order_by(DiscardedPlan.id.desc())
         total = q.count()
-        rows = q.order_by(DiscardedPlan.id.desc()).offset((pagina-1)*tamanho).limit(tamanho).all()
-        return {"items": rows, "total": total}
+        items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        return {"items": items, "total": total}
     finally:
         db.close()
+
+# ---- Debug endpoint (força erro p/ validar logger) ----
+@app.get("/debug/boom")
+def boom():
+    raise RuntimeError("boom de teste")

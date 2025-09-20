@@ -102,7 +102,7 @@
                 </table>
               </div>
               <div class="footer">
-                <div class="muted" id="footerInfo">exibindo 10 por página • 0 planos passíveis de rescisão.</div>
+                <div class="muted" id="footerInfo">nada a exibir por aqui.</div>
                 <div><button id="btnAnterior">Anterior</button><span class="muted" id="lblPaginaTotal" style="margin:0 6px">página 1 de 1</span><button id="btnProximo">Próximo</button></div>
               </div>
             </div>
@@ -118,7 +118,7 @@
                 </table>
               </div>
               <div class="footer">
-                <div class="muted" id="footerInfoOcc">exibindo 10 por página • 0 ocorrências.</div>
+                <div class="muted" id="footerInfoOcc">nada a exibir por aqui.</div>
                 <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">página 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
               </div>
             </div>
@@ -149,7 +149,7 @@ const el={
   log:$("#log"), estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr")
 };
-let pagina=1,tamanho=10,totalPlanos=0,maxPaginas=1;
+let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1;
 let timer=null;
 
@@ -164,13 +164,17 @@ function stateButtons(estado){
 }
 async function api(path,opts={}){const r=await fetch(path,{headers:{"Content-Type":"application/json"},...opts});if(!r.ok)throw new Error(await r.text());return r.json()}
 
-function updateFooter(){
-  el.footerInfo.textContent=`exibindo ${tamanho} por página • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`;
+function updateFooter(hasData){
+  el.footerInfo.textContent=hasData
+    ? `exibindo ${tamanho} por página • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`
+    : "nada a exibir por aqui.";
   el.btnAnterior.disabled=(pagina<=1); el.btnProximo.disabled=(pagina>=maxPaginas);
   el.lblPaginaTotal.textContent=`página ${pagina} de ${maxPaginas}`;
 }
-function updateFooterOcc(){
-  el.footerInfoOcc.textContent=`exibindo ${tamanho} por página • ${totalOcc} ocorrências.`;
+function updateFooterOcc(hasData){
+  el.footerInfoOcc.textContent=hasData
+    ? `exibindo ${tamanho} por página • ${totalOcc} ocorrências.`
+    : "nada a exibir por aqui.";
   el.btnAnteriorOcc.disabled=(paginaOcc<=1); el.btnProximoOcc.disabled=(paginaOcc>=maxPaginasOcc);
   el.lblPaginaTotalOcc.textContent=`página ${paginaOcc} de ${maxPaginasOcc}`;
 }
@@ -196,8 +200,10 @@ function attachCopyHandlers(container){
 
 async function carregarPlanos(){
   const data=await api(`/captura/planos?pagina=${pagina}&tamanho=${tamanho}`);
-  const items=data.items||[]; totalPlanos={all:data.total??items.length, passiveis:data.total_passiveis??0};
-  maxPaginas=Math.max(1,Math.ceil((data.total||items.length)/tamanho));
+  const items=data.items||[];
+  const totalRegistros=data.total??items.length;
+  totalPlanos={all:totalRegistros, passiveis:data.total_passiveis??0};
+  maxPaginas=Math.max(1,Math.ceil(totalRegistros/tamanho));
   if(pagina>maxPaginas){pagina=maxPaginas;return carregarPlanos()}
   el.tbody.innerHTML="";
   items.forEach(p=>{
@@ -213,13 +219,15 @@ async function carregarPlanos(){
     el.tbody.appendChild(tr);
   });
   attachCopyHandlers(el.tbody);
-  updateFooter();
+  updateFooter(totalRegistros>0);
 }
 
 async function carregarOcorrencias(){
   const data=await api(`/captura/ocorrencias?pagina=${paginaOcc}&tamanho=${tamanho}`);
-  const items=data.items||[]; totalOcc=data.total||0;
-  maxPaginasOcc=Math.max(1,Math.ceil(totalOcc/tamanho));
+  const items=data.items||[];
+  const totalRegistros=data.total??items.length;
+  totalOcc=totalRegistros;
+  maxPaginasOcc=Math.max(1,Math.ceil(totalRegistros/tamanho));
   if(paginaOcc>maxPaginasOcc){paginaOcc=maxPaginasOcc;return carregarOcorrencias()}
   el.tbodyOcc.innerHTML="";
   items.forEach(p=>{
@@ -234,7 +242,7 @@ async function carregarOcorrencias(){
     el.tbodyOcc.appendChild(tr);
   });
   attachCopyHandlers(el.tbodyOcc);
-  updateFooterOcc();
+  updateFooterOcc(totalRegistros>0);
 }
 
 function renderEmProgresso(list){

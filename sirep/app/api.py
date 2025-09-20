@@ -1,5 +1,8 @@
 from __future__ import annotations
+
 import logging
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -7,10 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from sirep import __version__
-from sirep.infra.db import init_db, SessionLocal
-from sirep.infra.logging import setup_logging
-from sirep.domain.models import Plan, DiscardedPlan
 from sirep.app.captura import captura
+from sirep.domain.models import DiscardedPlan, Plan
+from sirep.domain.schemas import DiscardedPlanOut, PlanOut
+from sirep.infra.db import SessionLocal, init_db
+from sirep.infra.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,9 @@ setup_logging()        # <<< logs em arquivo + console
 init_db()              # garante schema
 
 app = FastAPI(title="SIREP 2.0", version=__version__)
-app.mount("/app", StaticFiles(directory="ui", html=True), name="ui")
+
+ui_dir = Path(__file__).resolve().parent.parent / "ui"
+app.mount("/app", StaticFiles(directory=str(ui_dir), html=True), name="ui")
 
 @app.get("/")
 def root():
@@ -97,7 +103,11 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
     try:
         q = db.query(Plan).order_by(Plan.saldo.desc().nullslast())
         total = q.count()
-        items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        items = [
+            PlanOut.model_validate(plan).model_dump(mode="json")
+            for plan in raw_items
+        ]
         total_passiveis = db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
         return {"items": items, "total": total, "total_passiveis": total_passiveis}
     finally:
@@ -109,7 +119,11 @@ def captura_ocorrencias(pagina: int = 1, tamanho: int = 10):
     try:
         q = db.query(DiscardedPlan).order_by(DiscardedPlan.id.desc())
         total = q.count()
-        items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
+        items = [
+            DiscardedPlanOut.model_validate(plan).model_dump(mode="json")
+            for plan in raw_items
+        ]
         return {"items": items, "total": total}
     finally:
         db.close()

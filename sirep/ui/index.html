@@ -117,7 +117,7 @@
               </div>
               <div class="footer">
                 <div class="muted" id="footerInfo">nada a exibir por aqui.</div>
-                <div><button id="btnAnterior">Anterior</button><span class="muted" id="lblPaginaTotal" style="margin:0 6px">página 1 de 1</span><button id="btnProximo">Próximo</button></div>
+                <div><button id="btnAnterior">Anterior</button><span class="muted" id="lblPaginaTotal" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximo">Próximo</button></div>
               </div>
             </div>
 
@@ -133,7 +133,7 @@
               </div>
               <div class="footer">
                 <div class="muted" id="footerInfoOcc">nada a exibir por aqui.</div>
-                <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">página 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
+                <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
               </div>
             </div>
           </div>
@@ -301,14 +301,14 @@ function updateFooter(hasData){
     ? `exibindo ${tamanho} por página • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`
     : "nada a exibir por aqui.";
   el.btnAnterior.disabled=(pagina<=1); el.btnProximo.disabled=(pagina>=maxPaginas);
-  el.lblPaginaTotal.textContent=`página ${pagina} de ${maxPaginas}`;
+  el.lblPaginaTotal.textContent=`pág. ${pagina} de ${maxPaginas}`;
 }
 function updateFooterOcc(hasData){
   el.footerInfoOcc.textContent=hasData
     ? `exibindo ${tamanho} por página • ${totalOcc} ocorrências.`
     : "nada a exibir por aqui.";
   el.btnAnteriorOcc.disabled=(paginaOcc<=1); el.btnProximoOcc.disabled=(paginaOcc>=maxPaginasOcc);
-  el.lblPaginaTotalOcc.textContent=`página ${paginaOcc} de ${maxPaginasOcc}`;
+  el.lblPaginaTotalOcc.textContent=`pág. ${paginaOcc} de ${maxPaginasOcc}`;
 }
 function attachCopyHandlers(container){
   container.querySelectorAll(".copy").forEach(a=>{

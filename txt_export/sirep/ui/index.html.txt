@@ -54,7 +54,34 @@
       <div class="icon" title="Conta" aria-label="Conta">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
-    </div>
+const fmtMoney=n=>n==null?"":Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function formatDateBR(value){
+  if(!value) return "";
+  if(value instanceof Date&&!Number.isNaN(value.getTime())){
+    const day=String(value.getDate()).padStart(2,"0");
+    const month=String(value.getMonth()+1).padStart(2,"0");
+    const year=value.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  const str=String(value).trim();
+  if(!str) return "";
+  const isoMatch=str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/);
+  if(isoMatch){
+    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
+  }
+  const timestamp=Date.parse(str);
+  if(!Number.isNaN(timestamp)){
+    const date=new Date(timestamp);
+    if(!Number.isNaN(date.getTime())){
+      const day=String(date.getDate()).padStart(2,"0");
+      const month=String(date.getMonth()+1).padStart(2,"0");
+      const year=date.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  }
+  return str;
+}
+
   </div>
 </header>
 
@@ -84,9 +111,11 @@
 
             <div class="subtabs">
               <span class="subtab active" id="subtabPlanos">Planos capturados</span>
-              <span class="subtab" id="subtabOcorr">Ocorrências <span class="badge" id="badgeOcorr">0</span></span>
-            </div>
-
+              <span class="subtab" id="subtabOcorr">Ocorrências <span class="badge" id="badgeOcorr">0</span></span>      <td class="right">${fmtMoney(p.saldo)}</td>
+      <td>${formatDateBR(p.dt_situacao_atual)}</td>`;
+      <td class="right">${fmtMoney(p.saldo)}</td>
+      <td>${formatDateBR(p.dt_situacao_atual)}</td>`;
+
             <!-- Tabela Planos -->
             <div id="wrapPlanos">
               <div style="overflow:auto">

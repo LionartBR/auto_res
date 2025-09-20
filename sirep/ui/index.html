@@ -161,6 +161,32 @@
 <script>
 function $(selector){ return document.querySelector(selector); }
 const fmtMoney=n=>n==null?"":Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function formatDateBR(value){
+  if(!value) return "";
+  if(value instanceof Date&&!Number.isNaN(value.getTime())){
+    const day=String(value.getDate()).padStart(2,"0");
+    const month=String(value.getMonth()+1).padStart(2,"0");
+    const year=value.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  const str=String(value).trim();
+  if(!str) return "";
+  const isoMatch=str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/);
+  if(isoMatch){
+    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
+  }
+  const timestamp=Date.parse(str);
+  if(!Number.isNaN(timestamp)){
+    const date=new Date(timestamp);
+    if(!Number.isNaN(date.getTime())){
+      const day=String(date.getDate()).padStart(2,"0");
+      const month=String(date.getMonth()+1).padStart(2,"0");
+      const year=date.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  }
+  return str;
+}
 const TIMEZONE="America/Sao_Paulo";
 function formatDateTime(value,options){
   if(!value)return"";
@@ -347,7 +373,7 @@ async function carregarPlanos(){
       <td>${p.tipo||""}</td>
       <td class="right">${p.dias_em_atraso??""}</td>
       <td class="right">${fmtMoney(p.saldo)}</td>
-      <td>${p.dt_situacao_atual||""}</td>`;
+      <td>${formatDateBR(p.dt_situacao_atual)}</td>`;
     el.tbody.appendChild(tr);
   });
   attachCopyHandlers(el.tbody);
@@ -371,7 +397,7 @@ async function carregarOcorrencias(){
       <td><a class="copy" data-copy="${p.cnpj}" data-copy-type="cnpj" href="#">${p.cnpj}</a></td>
       <td>${p.tipo||""}</td>
       <td class="right">${fmtMoney(p.saldo)}</td>
-      <td>${p.dt_situacao_atual||""}</td>`;
+      <td>${formatDateBR(p.dt_situacao_atual)}</td>`;
     el.tbodyOcc.appendChild(tr);
   });
   attachCopyHandlers(el.tbodyOcc);

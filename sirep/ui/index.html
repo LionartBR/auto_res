@@ -38,8 +38,12 @@
     .subtab.active{color:var(--accent);opacity:1}
     .badge{display:inline-block;min-width:18px;padding:0 6px;border-radius:999px;background:#fef2f2;color:#b91c1c;font-weight:800;font-size:11px;border:1px solid #fecaca;vertical-align:middle;margin-left:6px}
     /* link copyable */
-    .copy{color:#0b5fa8;cursor:pointer;text-decoration:underline}
+    .copy{color:#0b5fa8;cursor:pointer;text-decoration:underline;position:relative;display:inline-block}
     .copy.copied{color:#16a34a;text-decoration:none}
+    .copy.copied::after{content:"item copiado";position:absolute;left:50%;top:-32px;transform:translateX(-50%);background:rgba(17,17,17,.92);color:#fff;font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 10px rgba(0,0,0,.18);pointer-events:none;animation:copy-tooltip .9s ease;z-index:20}
+    .copy.copied::before{content:"";position:absolute;left:50%;top:-10px;transform:translateX(-50%);border:6px solid transparent;border-top-color:rgba(17,17,17,.92);pointer-events:none;animation:copy-tooltip-arrow .9s ease;z-index:19}
+    @keyframes copy-tooltip{0%{opacity:0;transform:translate(-50%,-4px)}20%{opacity:1;transform:translate(-50%,-10px)}80%{opacity:1;transform:translate(-50%,-12px)}100%{opacity:0;transform:translate(-50%,-14px)}}
+    @keyframes copy-tooltip-arrow{0%{opacity:0;transform:translate(-50%,2px)}20%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,-1px)}100%{opacity:0;transform:translate(-50%,-2px)}}
   </style>
 </head>
 <body>
@@ -174,8 +178,18 @@ function attachCopyHandlers(container){
   container.querySelectorAll(".copy").forEach(a=>{
     a.onclick=async (e)=>{
       e.preventDefault();
-      const t=a.getAttribute("data-copy")||a.textContent.trim();
-      try{ await navigator.clipboard.writeText(t); a.classList.add("copied"); setTimeout(()=>a.classList.remove("copied"),900);}catch{}
+      const raw=a.getAttribute("data-copy")||a.textContent.trim();
+      const text=a.dataset.copyType==="cnpj"?raw.replace(/\D+/g,""):raw;
+      try{
+        await navigator.clipboard.writeText(text);
+        if(a._copyTimer){clearTimeout(a._copyTimer);a._copyTimer=null;}
+        a.classList.remove("copied");
+        const raf=(window.requestAnimationFrame?window.requestAnimationFrame.bind(window):(fn)=>setTimeout(fn,0));
+        raf(()=>{
+          a.classList.add("copied");
+          a._copyTimer=setTimeout(()=>{a.classList.remove("copied");a._copyTimer=null;},900);
+        });
+      }catch{}
     };
   });
 }
@@ -213,7 +227,7 @@ async function carregarOcorrencias(){
     tr.innerHTML=`
       <td><a class="copy" data-copy="${p.numero_plano}" href="#">${p.numero_plano}</a></td>
       <td>${p.situacao}</td>
-      <td><a class="copy" data-copy="${p.cnpj}" href="#">${p.cnpj}</a></td>
+      <td><a class="copy" data-copy="${p.cnpj}" data-copy-type="cnpj" href="#">${p.cnpj}</a></td>
       <td>${p.tipo||""}</td>
       <td class="right">${fmtMoney(p.saldo)}</td>
       <td>${p.dt_situacao_atual||""}</td>`;

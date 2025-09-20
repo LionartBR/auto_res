@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import Iterable, Optional, Sequence, Any, Optional, Dict
+from typing import Optional, Sequence, Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update
-from sirep.domain.models import Plan, Event, JobRun, DiscardedPlan
+from sirep.domain.models import Plan, Event, JobRun, DiscardedPlan, CaptureEvent
 from sirep.domain.enums import PlanStatus, Step
 
 class PlanRepository:
@@ -26,6 +26,38 @@ class EventRepository:
     def __init__(self, db: Session): self.db = db
     def log(self, plan_id: int, step: Step, message: str, level: str="INFO"):
         self.db.add(Event(plan_id=plan_id, step=step, message=message, level=level))
+
+class CaptureEventRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def add_event(
+        self,
+        *,
+        numero_plano: str,
+        mensagem: str,
+        progresso: int,
+        etapa: str,
+        timestamp,
+    ) -> CaptureEvent:
+        event = CaptureEvent(
+            numero_plano=numero_plano,
+            mensagem=mensagem,
+            progresso=progresso,
+            etapa=etapa,
+            timestamp=timestamp,
+        )
+        self.db.add(event)
+        self.db.flush()
+        return event
+
+    def get_recent(self, limit: int) -> List[CaptureEvent]:
+        stmt = (
+            select(CaptureEvent)
+            .order_by(CaptureEvent.timestamp.desc(), CaptureEvent.id.desc())
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt))
 
 class JobRunRepository:
     def __init__(self, db: Session) -> None:

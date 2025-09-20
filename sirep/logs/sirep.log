@@ -175,3 +175,4 @@
 2025-09-20 12:19:51 INFO sirep.app.captura [captura.py:243]: captura finalizada: concluido
 2025-09-20 12:20:09 INFO sirep.app.captura [captura.py:171]: captura iniciada
 2025-09-20 12:20:10 INFO sirep.app.captura [captura.py:185]: captura pausada
+2025-09-20 12:27:21 INFO sirep.app.captura [captura.py:243]: captura finalizada: pausado

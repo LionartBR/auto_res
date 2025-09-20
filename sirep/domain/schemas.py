@@ -1,6 +1,8 @@
 from datetime import date, datetime
+from typing import List, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List
+
 from .enums import PlanStatus, Step
 
 class PlanIn(BaseModel):
@@ -34,6 +36,20 @@ class PlanOut(BaseModel):
     dt_parcela_atraso: Optional[date] = None
     representacao: Optional[str] = None
     status: PlanStatus
+
+    class Config:
+        from_attributes = True
+
+
+class DiscardedPlanOut(BaseModel):
+    id: int
+    numero_plano: str
+    situacao: str
+    cnpj: str
+    tipo: Optional[str] = None
+    saldo: Optional[float] = None
+    dt_situacao_atual: Optional[date] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True

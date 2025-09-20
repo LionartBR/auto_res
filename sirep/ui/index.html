@@ -221,14 +221,25 @@ function syncLogHeight(){
   const logMarginBottom=parseFloat(logStyle.marginBottom)||0;
   const bottomSpacing=logMarginBottom+(parseFloat(asideStyle.paddingBottom)||0)+(parseFloat(asideStyle.borderBottomWidth)||0);
   const available=Math.max(0,mainRect.height-relativeTop-bottomSpacing);
+  if(available<=0){
+    resetLogSizing();
+    return;
+  }
   const viewportAllowance=(typeof window!=="undefined")
     ? Math.max(0,window.innerHeight-logRect.top-logMarginBottom-24)
     : 0;
   const viewportCap=(typeof window!=="undefined")
     ? Math.max(MIN_LOG_HEIGHT,window.innerHeight-160)
     : MIN_LOG_HEIGHT;
-  const baseHeight=Math.max(MIN_LOG_HEIGHT,available,viewportAllowance);
-  const targetHeight=Math.min(Math.max(baseHeight,MIN_LOG_HEIGHT),viewportCap);
+  const minHeight=Math.min(MIN_LOG_HEIGHT,available);
+  let targetHeight=available;
+  if(viewportAllowance>0){
+    const allowanceLimit=Math.max(minHeight,Math.min(viewportAllowance,available));
+    targetHeight=Math.min(targetHeight,allowanceLimit);
+  }
+  const capLimit=Math.max(minHeight,Math.min(viewportCap,available));
+  targetHeight=Math.min(targetHeight,capLimit);
+  targetHeight=Math.max(minHeight,Math.min(targetHeight,available));
   const asideHeight=targetHeight+relativeTop+bottomSpacing;
   const finalAsideHeight=Math.max(mainRect.height,asideHeight);
   const size=`${targetHeight}px`;

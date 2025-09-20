@@ -29,7 +29,7 @@
     table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid var(--line)}
     th{text-align:left;font-size:12px;color:#4b5563} .right{text-align:right}
     .grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:stretch} @media (max-width:980px){.grid{grid-template-columns:1fr}}
-    .grid>aside{display:flex;flex-direction:column}
+    .grid>aside{display:flex;flex-direction:column;min-height:0}
     .log{border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;background:#fafafa;flex:1 1 auto;min-height:0}
     .log p{margin:0 0 6px}
     .log .log-active{font-weight:600}
@@ -161,6 +161,38 @@ const el={
   log:$("#log"), estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr")
 };
+const mainColumn=document.querySelector(".grid > div");
+const asideColumn=document.querySelector(".grid > aside");
+const logElement=el.log;
+const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationFrame==="function")
+  ? window.requestAnimationFrame.bind(window)
+  : (fn)=>setTimeout(fn,16);
+let logHeightFrame=null;
+function syncLogHeight(){
+  if(!mainColumn||!asideColumn||!logElement) return;
+  const mainRect=mainColumn.getBoundingClientRect();
+  if(mainRect.height<=0) return;
+  const asideStyle=getComputedStyle(asideColumn);
+  const logStyle=getComputedStyle(logElement);
+  const offsetTop=logElement.offsetTop+(parseFloat(logStyle.marginTop)||0);
+  const bottomSpacing=(parseFloat(logStyle.marginBottom)||0)+(parseFloat(asideStyle.paddingBottom)||0);
+  const available=Math.max(0,mainRect.height-offsetTop-bottomSpacing);
+  logElement.style.maxHeight=`${available}px`;
+  logElement.style.height="";
+}
+function scheduleLogSync(){
+  if(logHeightFrame!==null) return;
+  logHeightFrame=requestFrame(()=>{
+    logHeightFrame=null;
+    syncLogHeight();
+  });
+}
+if(typeof ResizeObserver==="function"){
+  const observer=new ResizeObserver(()=>scheduleLogSync());
+  if(mainColumn) observer.observe(mainColumn);
+  if(asideColumn) observer.observe(asideColumn);
+}
+window.addEventListener("resize",scheduleLogSync);
 let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1;
 let timer=null;
@@ -232,6 +264,7 @@ async function carregarPlanos(){
   });
   attachCopyHandlers(el.tbody);
   updateFooter(totalRegistros>0);
+  scheduleLogSync();
 }
 
 async function carregarOcorrencias(){
@@ -255,6 +288,7 @@ async function carregarOcorrencias(){
   });
   attachCopyHandlers(el.tbodyOcc);
   updateFooterOcc(totalRegistros>0);
+  scheduleLogSync();
 }
 
 function formatLogMessage(item){
@@ -300,6 +334,7 @@ function renderLog(_emProgresso, historico){
     const maxScroll=Math.max(0,container.scrollHeight-container.clientHeight);
     container.scrollTop=Math.min(prevScrollTop,maxScroll);
   }
+  scheduleLogSync();
 }
 
 async function carregarStatus(){
@@ -328,10 +363,10 @@ el.btnAnterior.onclick=()=>{if(pagina>1){pagina-=1;carregarPlanos()}};
 el.btnProximoOcc.onclick=()=>{if(paginaOcc<maxPaginasOcc){paginaOcc+=1;carregarOcorrencias()}};
 el.btnAnteriorOcc.onclick=()=>{if(paginaOcc>1){paginaOcc-=1;carregarOcorrencias()}};
 
-el.subtabPlanos.onclick=()=>{el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";};
-el.subtabOcorr.onclick=()=>{el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();};
+el.subtabPlanos.onclick=()=>{el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";scheduleLogSync();};
+el.subtabOcorr.onclick=()=>{el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();scheduleLogSync();};
 
-document.addEventListener("DOMContentLoaded", async()=>{await carregarStatus();await carregarPlanos();startPolling();});
+document.addEventListener("DOMContentLoaded", async()=>{await carregarStatus();await carregarPlanos();startPolling();scheduleLogSync();});
 </script>
 </body>
 </html>

@@ -19,15 +19,16 @@
     .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
     .content{padding:16px}
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .progress-row{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px;width:100%}
     button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
-    #btnIniciar,#btnContinuar{padding:12px 26px;font-size:15px;border-radius:12px}
+    #btnIniciar,#btnContinuar{padding:9px 14px;font-size:14px;border-radius:10px}
     button.primary{border:0;color:#fff;background:#108CBC;box-shadow:none;transition:transform .15s ease,background-color .15s ease}
     button.primary:hover:not(:disabled){background:#0b749f;transform:translateY(-1px)}
     #btnContinuar:not(.primary){background:#f3f4f6;color:var(--muted);border-color:#d1d5db}
     button:disabled{opacity:.5;cursor:not-allowed}
     .muted{color:var(--muted);font-size:12px}
     .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-    .progress{height:10px;background:#f3f4f6;border:1px solid var(--line);border-radius:999px;overflow:hidden;min-width:180px;flex:0 0 240px}
+    .progress{height:10px;background:#f3f4f6;border:1px solid var(--line);border-radius:999px;overflow:hidden;width:100%;min-width:220px;flex:1 1 auto}
     .progress>div{height:100%;background:linear-gradient(90deg,var(--prog-a),var(--prog-b));position:relative;transition:width .2s ease}
     table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid var(--line)}
     th{text-align:left;font-size:12px;color:#4b5563} .right{text-align:right}
@@ -90,10 +91,10 @@
                 <button id="btnPausar">Pausar</button>
                 <button id="btnContinuar" disabled>Continuar</button>
               </div>
-              <div class="row">
-                <div class="progress" title="Progresso total"><div id="barTotal" style="width:0%"></div></div>
-                <span id="lblTotal" class="muted">0% concluído</span>
-              </div>
+            </div>
+            <div class="progress-row">
+              <div class="progress" title="Progresso total"><div id="barTotal" style="width:0%"></div></div>
+              <span id="lblTotal" class="muted">0% concluído</span>
             </div>
 
             <div class="muted" id="ultimaAtualizacao">Última atualização: —</div>

@@ -299,7 +299,10 @@ class CapturaService:
 
         historico: List[PlanoHistorico] = []
         for ev in reversed(eventos):
-            ts = ev.timestamp.isoformat() if ev.timestamp else None
+            timestamp_dt = ev.timestamp
+            if timestamp_dt and timestamp_dt.tzinfo is None:
+                timestamp_dt = timestamp_dt.replace(tzinfo=timezone.utc)
+            ts = timestamp_dt.isoformat() if timestamp_dt else None
             historico.append(
                 PlanoHistorico(
                     numero_plano=ev.numero_plano,

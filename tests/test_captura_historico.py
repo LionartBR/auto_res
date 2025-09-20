@@ -37,3 +37,24 @@ def test_historico_persiste_entre_instancias():
     assert len(status.historico) == 5
     assert [item.mensagem for item in status.historico] == [f"Evento {i}" for i in range(2, 7)]
     assert status.ultima_atualizacao == status.historico[-1].timestamp
+
+
+def test_historico_carregado_mantem_fuso_horario():
+    init_db()
+    _limpar_historico()
+
+    service = CapturaService()
+    service._registrar_historico(
+        numero_plano="PLN-001",
+        progresso=1,
+        etapa="Etapa 1",
+        mensagem="Evento com fuso",
+    )
+
+    novo_service = CapturaService()
+    status = novo_service.status()
+
+    assert status.historico, "Histórico deveria conter ao menos um evento"
+    timestamp = status.historico[-1].timestamp
+    assert timestamp.endswith("+00:00")
+    assert status.ultima_atualizacao.endswith("+00:00")

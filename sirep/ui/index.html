@@ -167,13 +167,13 @@ function formatDateBR(value){
     const day=String(value.getDate()).padStart(2,"0");
     const month=String(value.getMonth()+1).padStart(2,"0");
     const year=value.getFullYear();
-    return `${day}-${month}-${year}`;
+    return `${day}/${month}/${year}`;
   }
   const str=String(value).trim();
   if(!str) return "";
   const isoMatch=str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/);
   if(isoMatch){
-    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`;
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
   }
   const timestamp=Date.parse(str);
   if(!Number.isNaN(timestamp)){
@@ -182,7 +182,7 @@ function formatDateBR(value){
       const day=String(date.getDate()).padStart(2,"0");
       const month=String(date.getMonth()+1).padStart(2,"0");
       const year=date.getFullYear();
-      return `${day}-${month}-${year}`;
+      return `${day}/${month}/${year}`;
     }
   }
   return str;
@@ -324,14 +324,14 @@ async function api(path,opts={}){const r=await fetch(path,{headers:{"Content-Typ
 
 function updateFooter(hasData){
   el.footerInfo.textContent=hasData
-    ? `exibindo ${tamanho} por página • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`
+    ? `exibindo ${tamanho} por pág. • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`
     : "nada a exibir por aqui.";
   el.btnAnterior.disabled=(pagina<=1); el.btnProximo.disabled=(pagina>=maxPaginas);
   el.lblPaginaTotal.textContent=`pág. ${pagina} de ${maxPaginas}`;
 }
 function updateFooterOcc(hasData){
   el.footerInfoOcc.textContent=hasData
-    ? `exibindo ${tamanho} por página • ${totalOcc} ocorrências.`
+    ? `exibindo ${tamanho} por pág. • ${totalOcc} ocorrências.`
     : "nada a exibir por aqui.";
   el.btnAnteriorOcc.disabled=(paginaOcc<=1); el.btnProximoOcc.disabled=(paginaOcc>=maxPaginasOcc);
   el.lblPaginaTotalOcc.textContent=`pág. ${paginaOcc} de ${maxPaginasOcc}`;

@@ -17,8 +17,9 @@
     .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 20px rgba(0,0,0,.06)}
     .tabs{display:flex;border-bottom:1px solid var(--line)}
     .tab{padding:12px 16px;cursor:pointer;font-weight:600;border-bottom:2px solid transparent}
-    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-    .content{padding:16px}
+    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}    return `${day}/${month}/${year}`;
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+      return `${day}/${month}/${year}`;
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     button{appearance:none;border:1px solid var(--line);background:#fff;color:#111;padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
     button.primary{border-color:var(--accent);color:#fff;background:var(--accent)}
@@ -51,11 +52,14 @@
       <div class="icon" title="Configurações" aria-label="Configurações">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V22a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 6.04 2.4l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8c0 .66.26 1.3.73 1.77.47.47 1.11.73 1.77.73H22a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </div>
-      <div class="icon" title="Conta" aria-label="Conta">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
-      </div>
-const fmtMoney=n=>n==null?"":Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-function formatDateBR(value){
+                <div class="muted" id="footerInfo">exibindo 10 por pág. • 0 planos passíveis de rescisão.</div>
+                <div><button id="btnAnterior">Anterior</button><span class="muted" id="lblPaginaTotal" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximo">Próximo</button></div>
+                <div class="muted" id="footerInfoOcc">exibindo 10 por pág. • 0 ocorrências.</div>
+                <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
+  el.footerInfo.textContent=`exibindo ${tamanho} por pág. • ${totalPlanos.passiveis??0} planos passíveis de rescisão.`;
+  el.lblPaginaTotal.textContent=`pág. ${pagina} de ${maxPaginas}`;
+  el.footerInfoOcc.textContent=`exibindo ${tamanho} por pág. • ${totalOcc} ocorrências.`;
+  el.lblPaginaTotalOcc.textContent=`pág. ${paginaOcc} de ${maxPaginasOcc}`;
   if(!value) return "";
   if(value instanceof Date&&!Number.isNaN(value.getTime())){
     const day=String(value.getDate()).padStart(2,"0");

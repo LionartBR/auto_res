@@ -1,8 +1,13 @@
 from __future__ import annotations
-import asyncio, random, traceback, logging
+
+import asyncio
+import logging
+import random
+import threading
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
-from typing import List, Dict, Optional, Literal
+from typing import Dict, List, Literal, Optional
 
 from sirep.infra.db import SessionLocal
 from sirep.infra.repositories import PlanRepository, EventRepository, OccurrenceRepository
@@ -33,9 +38,12 @@ class CapturaStatus:
 class CapturaService:
     def __init__(self) -> None:
         self._status = CapturaStatus()
-        self._loop_task: Optional[asyncio.Task] = None
-        self._pause_evt = asyncio.Event(); self._pause_evt.set()
-        self._stop_evt = asyncio.Event()
+        self._loop_task: Optional[asyncio.Future] = None
+        self._pause_evt: Optional[asyncio.Event] = None
+        self._stop_evt: Optional[asyncio.Event] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop_thread: Optional[threading.Thread] = None
+        self._loop_ready = threading.Event()
         self._total_alvos = 50
         self._velocidade = 1
         self._step_min = 0.40
@@ -44,42 +52,118 @@ class CapturaService:
     def status(self) -> CapturaStatus: 
         return self._status
 
-    def reset_estado(self) -> None: 
+    def reset_estado(self) -> None:
         self._status = CapturaStatus()
+        self._loop_task = None
+        self._pause_evt = None
+        self._stop_evt = None
+
+    @staticmethod
+    async def _call_sync(func) -> None:
+        func()
+
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            self._loop = loop
+            return loop
+
+        existing = self._loop
+        if existing and existing.is_running():
+            return existing
+
+        loop = asyncio.new_event_loop()
+        self._loop = loop
+        self._loop_ready.clear()
+
+        def runner() -> None:
+            asyncio.set_event_loop(loop)
+            self._loop_ready.set()
+            loop.run_forever()
+
+        self._loop_thread = threading.Thread(target=runner, name="captura-loop", daemon=True)
+        self._loop_thread.start()
+        self._loop_ready.wait()
+        return loop
+
+    def _run_on_loop(self, func, *, wait: bool = False, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+        target = loop or self._loop
+        if target is None:
+            return
+
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+
+        if running is target:
+            func()
+            return
+
+        fut = asyncio.run_coroutine_threadsafe(self._call_sync(func), target)
+        if wait:
+            fut.result()
 
     def iniciar(self) -> None:
         if self._status.estado in ("executando", "pausado"):
             logger.info("captura já em %s", self._status.estado)
             return
         self._status = CapturaStatus(estado="executando")
-        self._stop_evt = asyncio.Event()
-        self._pause_evt.set()
+
+        loop = self._ensure_loop()
+        def prepare_events() -> None:
+            self._pause_evt = asyncio.Event()
+            self._pause_evt.set()
+            self._stop_evt = asyncio.Event()
+
+        self._run_on_loop(prepare_events, wait=True, loop=loop)
+
+        if self._pause_evt is None or self._stop_evt is None:
+            raise RuntimeError("falha ao inicializar eventos da captura")
+
         try:
-            loop = asyncio.get_running_loop()
+            running = asyncio.get_running_loop()
         except RuntimeError:
-            loop = asyncio.get_event_loop()
-        self._loop_task = loop.create_task(self._run(), name="captura-run")
+            running = None
+
+        if running is loop:
+            self._loop_task = loop.create_task(self._run(), name="captura-run")
+        else:
+            self._loop_task = asyncio.run_coroutine_threadsafe(self._run(), loop)
         logger.info("captura iniciada")
 
     def pausar(self) -> None:
         if self._status.estado != "executando":
             return
         self._status.estado = "pausado"
-        self._pause_evt.clear()
+        if self._pause_evt is not None:
+            self._run_on_loop(self._pause_evt.clear)
         logger.info("captura pausada")
 
     def continuar(self) -> None:
         if self._status.estado != "pausado":
             return
         self._status.estado = "executando"
-        self._pause_evt.set()
+        if self._pause_evt is not None:
+            self._run_on_loop(self._pause_evt.set)
         logger.info("captura continuada")
 
     async def _run(self) -> None:
+        pause_evt = self._pause_evt
+        stop_evt = self._stop_evt
+        if pause_evt is None or stop_evt is None:
+            logger.error("eventos de controle não inicializados antes da captura")
+            self._status.estado = "concluido"
+            return
+
         try:
             alvo, gerados = self._total_alvos, 0
-            while not self._stop_evt.is_set() and gerados < alvo:
-                await self._pause_evt.wait()
+            while not stop_evt.is_set() and gerados < alvo:
+                await pause_evt.wait()
                 for _ in range(min(self._velocidade, alvo - gerados)):
                     numero = self._gerar_numero()
                     try:
@@ -101,6 +185,9 @@ class CapturaService:
         finally:
             if self._status.estado != "pausado":
                 self._status.estado = "concluido"
+            self._loop_task = None
+            self._pause_evt = None
+            self._stop_evt = None
             logger.info("captura finalizada: %s", self._status.estado)
 
     async def _processar_plano(self, numero_plano: str) -> None:

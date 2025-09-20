@@ -90,6 +90,16 @@ async def captura_status():
             {"numero_plano": p.numero_plano, "progresso": p.progresso, "etapas": p.etapas}
             for p in st.em_progresso.values()
         ],
+        "historico": [
+            {
+                "numero_plano": h.numero_plano,
+                "mensagem": h.mensagem,
+                "progresso": h.progresso,
+                "etapa": h.etapa,
+                "timestamp": h.timestamp,
+            }
+            for h in st.historico
+        ],
         "ultima_atualizacao": st.ultima_atualizacao,
         "ocorrencias_total": ocorrencias_total,
         "total": total,

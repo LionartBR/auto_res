@@ -124,13 +124,17 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
         db.close()
 
 @app.get("/captura/ocorrencias")
-def captura_ocorrencias(pagina: int = 1, tamanho: int = 10):
+def captura_ocorrencias(pagina: int = 1, tamanho: int = 10, situacao: str | None = None):
     db = SessionLocal()
     try:
         q = db.query(DiscardedPlan).order_by(
             DiscardedPlan.saldo.desc().nullslast(),
             DiscardedPlan.id.desc(),
         )
+        if situacao:
+            value = situacao.strip()
+            if value and value.upper() != "TODAS":
+                q = q.filter(DiscardedPlan.situacao == value)
         total = q.count()
         raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
         items = [

@@ -152,3 +152,4 @@
 2025-09-20 11:28:56 INFO sirep.app.captura [captura.py:243]: captura finalizada: concluido
 2025-09-20 11:29:14 INFO sirep.app.captura [captura.py:171]: captura iniciada
 2025-09-20 11:30:06 INFO sirep.app.captura [captura.py:243]: captura finalizada: concluido
+2025-09-20 11:39:57 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)

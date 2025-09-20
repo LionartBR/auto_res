@@ -203,7 +203,7 @@ class CapturaService:
             st.em_progresso[numero_plano].progresso = 1
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
-            if random.random() < 0.10:
+            if random.random() < 0.05:
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
                         numero_plano=numero_plano, situacao="SIT ESPECIAL", cnpj=cnpj,
@@ -214,7 +214,7 @@ class CapturaService:
             st.em_progresso[numero_plano].progresso = 2
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
-            if random.random() < 0.08:
+            if random.random() < 0.04:
                 sit = random.choice(("LIQUIDADO","RESCINDIDO"))
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
@@ -226,7 +226,7 @@ class CapturaService:
             st.em_progresso[numero_plano].progresso = 3
 
             await asyncio.sleep(random.uniform(self._step_min, self._step_max))
-            if random.random() < 0.12:
+            if random.random() < 0.04:
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
                         numero_plano=numero_plano, situacao="GRDE Emitida", cnpj=cnpj,
@@ -236,7 +236,7 @@ class CapturaService:
                 return
             st.em_progresso[numero_plano].progresso = 4
 
-            if random.random() < 0.05:
+            if random.random() < 0.03:
                 situacao_final = random.choice(SITS_ALT)
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(

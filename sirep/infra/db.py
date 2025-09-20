@@ -7,7 +7,13 @@ def get_engine():
     return create_engine(settings.DB_URL, future=True)
 
 _engine = get_engine()
-SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False, future=True)
+SessionLocal = sessionmaker(
+    bind=_engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+    future=True,
+)
 
 def init_db() -> None:
     # importa Base aqui para evitar import circular

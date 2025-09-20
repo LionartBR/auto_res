@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import date
-from sqlalchemy import Column, Integer, String, Date, DateTime, Float, func, ForeignKey, JSON, Text
+from sqlalchemy import Column, Integer, String, Date, DateTime, Float, func, ForeignKey, JSON
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -42,7 +42,7 @@ class JobRun(Base):
     job_name = Column(String(64), nullable=False)              # obrigatório
     step = Column(String(64), nullable=True)                   # novo
     input_hash = Column(String(128), nullable=True)            # novo
-    info = Column(JSON().with_variant(Text, "sqlite"), nullable=True)  # novo (TEXT no SQLite)
+    info = Column(JSON, nullable=True)  # novo (JSON storage)
     started_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(16), nullable=False, default="OK")  # OK | FAIL | RUNNING etc.

@@ -132,6 +132,13 @@ class CapturaService:
             ultima_atualizacao=ultima_atualizacao,
         )
 
+        self._registrar_historico(
+            numero_plano="",
+            progresso=0,
+            etapa="",
+            mensagem="Processamento iniciado.",
+        )
+
         loop = self._ensure_loop()
         def prepare_events() -> None:
             self._pause_evt = asyncio.Event()
@@ -160,6 +167,12 @@ class CapturaService:
         self._status.estado = "pausado"
         if self._pause_evt is not None:
             self._run_on_loop(self._pause_evt.clear)
+        self._registrar_historico(
+            numero_plano="",
+            progresso=0,
+            etapa="",
+            mensagem="Processamento pausado.",
+        )
         logger.info("captura pausada")
 
     def continuar(self) -> None:
@@ -168,6 +181,12 @@ class CapturaService:
         self._status.estado = "executando"
         if self._pause_evt is not None:
             self._run_on_loop(self._pause_evt.set)
+        self._registrar_historico(
+            numero_plano="",
+            progresso=0,
+            etapa="",
+            mensagem="Processamento retomado.",
+        )
         logger.info("captura continuada")
 
     async def _run(self) -> None:

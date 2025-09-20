@@ -174,9 +174,10 @@ function syncLogHeight(){
   if(mainRect.height<=0) return;
   const asideStyle=getComputedStyle(asideColumn);
   const logStyle=getComputedStyle(logElement);
-  const offsetTop=logElement.offsetTop+(parseFloat(logStyle.marginTop)||0);
+  const logRect=logElement.getBoundingClientRect();
+  const relativeTop=logRect.top-mainRect.top;
   const bottomSpacing=(parseFloat(logStyle.marginBottom)||0)+(parseFloat(asideStyle.paddingBottom)||0);
-  const available=Math.max(0,mainRect.height-offsetTop-bottomSpacing);
+  const available=Math.max(0,mainRect.height-relativeTop-bottomSpacing);
   const size=`${available}px`;
   logElement.style.maxHeight=size;
   logElement.style.minHeight=size;

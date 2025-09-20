@@ -21,6 +21,8 @@
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .progress-row{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px;width:100%}
     button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+    select{border:1px solid var(--line);background:#fff;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600;min-width:160px}
+    select:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:1px}
     #btnIniciar,#btnContinuar{padding:9px 14px;font-size:14px;border-radius:10px}
     button.primary{border:0;color:#fff;background:#108CBC;box-shadow:none;transition:transform .15s ease,background-color .15s ease}
     button.primary:hover:not(:disabled){background:#0b749f;transform:translateY(-1px)}
@@ -123,6 +125,16 @@
 
             <!-- Tabela Ocorrências -->
             <div id="wrapOcorr" style="display:none">
+              <div class="controls" style="margin-bottom:10px;">
+                <label for="filtroOcorr" style="font-weight:600;">Exibir:</label>
+                <select id="filtroOcorr">
+                  <option value="TODAS">Todas</option>
+                  <option value="SIT ESPECIAL">Sit especial</option>
+                  <option value="LIQUIDADO">Liquidado</option>
+                  <option value="RESCINDIDO">Rescindido</option>
+                  <option value="GRDE Emitida">GRDE emitida</option>
+                </select>
+              </div>
               <div style="overflow:auto">
                 <table>
                   <thead><tr>
@@ -202,6 +214,7 @@ const el={
   lblPaginaTotal:$("#lblPaginaTotal"), footerInfo:$("#footerInfo"),
   tbodyOcc:$("#tbodyOcc"), btnProximoOcc:$("#btnProximoOcc"), btnAnteriorOcc:$("#btnAnteriorOcc"),
   lblPaginaTotalOcc:$("#lblPaginaTotalOcc"), footerInfoOcc:$("#footerInfoOcc"),
+  filtroOcorr:$("#filtroOcorr"),
   log:$("#log"), estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk")
@@ -292,7 +305,7 @@ if(typeof ResizeObserver==="function"){
 }
 window.addEventListener("resize",scheduleLogSync);
 let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
-let paginaOcc=1,totalOcc=0,maxPaginasOcc=1;
+let paginaOcc=1,totalOcc=0,maxPaginasOcc=1,filtroSituacaoOcc="TODAS";
 let timer=null;
 let ultimoEstado=null;
 
@@ -382,7 +395,11 @@ async function carregarPlanos(){
 }
 
 async function carregarOcorrencias(){
-  const data=await api(`/captura/ocorrencias?pagina=${paginaOcc}&tamanho=${tamanho}`);
+  const params=new URLSearchParams({pagina:String(paginaOcc),tamanho:String(tamanho)});
+  if(filtroSituacaoOcc&&filtroSituacaoOcc!=="TODAS"){
+    params.set("situacao",filtroSituacaoOcc);
+  }
+  const data=await api(`/captura/ocorrencias?${params.toString()}`);
   const items=data.items||[];
   const totalRegistros=data.total??items.length;
   totalOcc=totalRegistros;
@@ -484,6 +501,14 @@ el.btnAnteriorOcc.onclick=()=>{if(paginaOcc>1){paginaOcc-=1;carregarOcorrencias(
 
 el.subtabPlanos.onclick=()=>{el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";scheduleLogSync();};
 el.subtabOcorr.onclick=()=>{el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();scheduleLogSync();};
+
+if(el.filtroOcorr){
+  el.filtroOcorr.addEventListener("change",()=>{
+    filtroSituacaoOcc=el.filtroOcorr.value||"TODAS";
+    paginaOcc=1;
+    carregarOcorrencias();
+  });
+}
 
 if(el.btnModalOk){
   el.btnModalOk.addEventListener("click",()=>{

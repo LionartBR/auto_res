@@ -248,29 +248,47 @@ async function carregarOcorrencias(){
   updateFooterOcc(totalRegistros>0);
 }
 
-function renderLog(emProgresso, historico){
-  el.log.innerHTML="";
+function formatLogMessage(item){
+  const hora=item.timestamp?new Date(item.timestamp).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
+  const numero=(item.numero_plano||"").trim();
+  const mensagem=(item.mensagem||"").trim();
+  let corpo="";
+  if(mensagem==="Capturado com sucesso"&&numero){
+    corpo=`${numero} processado com sucesso.`;
+  }else if(mensagem.startsWith("Descartado")&&numero){
+    corpo=`${numero} possui ocorrência.`;
+  }else if(mensagem==="Falha inesperada"&&numero){
+    corpo=`${numero} falhou no processamento.`;
+  }else if(mensagem){
+    corpo=numero?`${numero} — ${mensagem}`:mensagem;
+  }else{
+    corpo=numero;
+  }
+  if(!corpo) return "";
+  return hora?`[${hora}] ${corpo}`:corpo;
+}
+
+function renderLog(_emProgresso, historico){
+  const container=el.log;
+  const prevScrollTop=container.scrollTop;
+  const nearBottom=(container.scrollHeight - (container.scrollTop + container.clientHeight))<=8;
+  container.innerHTML="";
   const frag=document.createDocumentFragment();
-  emProgresso.forEach(item=>{
-    const p=Math.min(4,Math.max(0,item.progresso));
-    const pct=Math.round((p/4)*100);
-    const etapa=item.etapas[p-1]||"Início";
-    const div=document.createElement("p");
-    div.textContent=`${item.numero_plano} — ${pct}% (${etapa})`;
-    div.classList.add("log-active");
-    frag.appendChild(div);
-  });
   historico.forEach(item=>{
+    const texto=formatLogMessage(item);
+    if(!texto) return;
     const div=document.createElement("p");
-    const etapa=item.etapa?` (${item.etapa})`:"";
-    const hora=item.timestamp?new Date(item.timestamp).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
-    const prefix=hora?`[${hora}] `:"";
-    div.textContent=`${prefix}${item.numero_plano} — ${item.mensagem}${etapa}`;
+    div.textContent=texto;
     div.classList.add("log-history");
     frag.appendChild(div);
   });
-  el.log.appendChild(frag);
-  el.log.scrollTop=el.log.scrollHeight;
+  container.appendChild(frag);
+  if(nearBottom){
+    container.scrollTop=container.scrollHeight;
+  }else{
+    const maxScroll=Math.max(0,container.scrollHeight-container.clientHeight);
+    container.scrollTop=Math.min(prevScrollTop,maxScroll);
+  }
 }
 
 async function carregarStatus(){

@@ -20,7 +20,8 @@ class Etapa1Captura:
         h = compute_hash(payload)
         hoje = datetime.utcnow().date()
         with unit_of_work() as db:
-            jobs = JobRunRepository(db); job = jobs.start(Step.ETAPA_1, h)
+            jobs = JobRunRepository(db)
+            job = jobs.start(job_name=Step.ETAPA_1, step=Step.ETAPA_1, input_hash=h)
             plans = PlanRepository(db); events = EventRepository(db)
             linhas: List[Dict[str, Any]] = []
 
@@ -67,7 +68,11 @@ class Etapa1Captura:
 
             # carga complementar no SIREP
             self.sirep.carga_complementar(linhas)
-            jobs.finish(job, "FINISHED", f"{len(linhas)} planos")
+            jobs.finish(
+                job.id,
+                status="FINISHED",
+                info_update={"summary": f"{len(linhas)} planos"},
+            )
             return {"job_id": job.id, "count": len(linhas)}
 
 
@@ -81,7 +86,11 @@ class Etapa2SituacaoEspecial:
         afetados = 0
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(Step.ETAPA_2, compute_hash(linhas))
+            job = jobs.start(
+                job_name=Step.ETAPA_2,
+                step=Step.ETAPA_2,
+                input_hash=compute_hash(linhas),
+            )
             for l in linhas:
                 numero = l["numero_plano"]
                 if self.cefgd.plano_e_especial(numero):
@@ -89,7 +98,11 @@ class Etapa2SituacaoEspecial:
                     p = plans.upsert(numero, status=PlanStatus.ESPECIAL)
                     events.log(p.id, Step.ETAPA_2, "Plano classificado como especial")
                     afetados += 1
-            jobs.finish(job, "FINISHED", f"{afetados} especiais")
+            jobs.finish(
+                job.id,
+                status="FINISHED",
+                info_update={"summary": f"{afetados} especiais"},
+            )
             return {"job_id": job.id, "afetados": afetados}
 
 
@@ -102,7 +115,11 @@ class Etapa3LiquidacaoAnterior:
         linhas = self.sirep.listar_sem_tratamento()
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(Step.ETAPA_3, compute_hash(linhas))
+            job = jobs.start(
+                job_name=Step.ETAPA_3,
+                step=Step.ETAPA_3,
+                input_hash=compute_hash(linhas),
+            )
             for l in linhas:
                 numero = l["numero_plano"]
                 # Stub: marca alguns como liquidados
@@ -110,7 +127,7 @@ class Etapa3LiquidacaoAnterior:
                     self.sirep.atualizar_plano(numero, {"justificativa": "Liquidado anteriormente"})
                     p = plans.upsert(numero, status=PlanStatus.LIQUIDADO)
                     events.log(p.id, Step.ETAPA_3, "Liquidado/rescindido anteriormente")
-            jobs.finish(job, "FINISHED")
+            jobs.finish(job.id, status="FINISHED")
             return {"job_id": job.id}
 
 
@@ -123,14 +140,18 @@ class Etapa4GuiaGRDE:
         linhas = self.sirep.listar_sem_tratamento()
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(Step.ETAPA_4, compute_hash(linhas))
+            job = jobs.start(
+                job_name=Step.ETAPA_4,
+                step=Step.ETAPA_4,
+                input_hash=compute_hash(linhas),
+            )
             for l in linhas:
                 numero = l["numero_plano"]
                 if self.fge.plano_tem_grde(numero):
                     self.sirep.atualizar_plano(numero, {"grde": True, "justificativa": "Existe GRDE"})
                     p = plans.upsert(numero, status=PlanStatus.NAO_RESCINDIDO)
                     events.log(p.id, Step.ETAPA_4, "GRDE emitida")
-            jobs.finish(job, "FINISHED")
+            jobs.finish(job.id, status="FINISHED")
             return {"job_id": job.id}
 
 
@@ -152,7 +173,11 @@ class Etapa7SubstituicaoE206:
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
             ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
-            job = jobs.start(Step.ETAPA_7, compute_hash([p.numero_plano for p in ativos]))
+            job = jobs.start(
+                job_name=Step.ETAPA_7,
+                step=Step.ETAPA_7,
+                input_hash=compute_hash([p.numero_plano for p in ativos]),
+            )
             for p in ativos:
                 confessados = self.fge.listar_debitos_confessados(p.numero_plano)
                 houve_subst = any(
@@ -161,7 +186,7 @@ class Etapa7SubstituicaoE206:
                 )
                 msg = "Débito confessado substituído por notificação fiscal" if houve_subst else "Sem substituição"
                 events.log(p.id, Step.ETAPA_7, msg)
-            jobs.finish(job, "FINISHED")
+            jobs.finish(job.id, status="FINISHED")
             return {"job_id": job.id, "planos": len(ativos)}
 
 
@@ -192,13 +217,17 @@ class Etapa10SituacaoPlano:
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
             ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
-            job = jobs.start(Step.ETAPA_10, compute_hash([p.numero_plano for p in ativos]))
+            job = jobs.start(
+                job_name=Step.ETAPA_10,
+                step=Step.ETAPA_10,
+                input_hash=compute_hash([p.numero_plano for p in ativos]),
+            )
             for p in ativos:
                 # Stub: alterna para não elegível alguns exemplos
                 if p.numero_plano.endswith("2"):
                     plans.set_status(p, PlanStatus.NAO_RESCINDIDO)
                     events.log(p.id, Step.ETAPA_10, "Situação alterada – não passível de rescisão")
-            jobs.finish(job, "FINISHED")
+            jobs.finish(job.id, status="FINISHED")
             return {"job_id": job.id}
 
 
@@ -213,7 +242,11 @@ class Etapa11Rescisao:
         with unit_of_work() as db:
             plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
             ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
-            job = jobs.start(Step.ETAPA_11, compute_hash([p.numero_plano for p in ativos]))
+            job = jobs.start(
+                job_name=Step.ETAPA_11,
+                step=Step.ETAPA_11,
+                input_hash=compute_hash([p.numero_plano for p in ativos]),
+            )
             for p in ativos:
                 ok = self.fge.executar_rescisao(p.numero_plano)
                 if ok:
@@ -223,7 +256,7 @@ class Etapa11Rescisao:
                     events.log(p.id, Step.ETAPA_11, f"Rescindido em {datetime.utcnow().date().isoformat()}")
                 else:
                     events.log(p.id, Step.ETAPA_11, "Falha de rescisão", level="ERROR")
-            jobs.finish(job, "FINISHED")
+            jobs.finish(job.id, status="FINISHED")
 
         with open("Rescindidos_CNPJ.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(rescindidos_cnpj))

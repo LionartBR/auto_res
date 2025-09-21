@@ -279,6 +279,12 @@ function syncLogHeight(){
     resetLogSizing();
     return;
   }
+  // clear previous inline sizing so measurements reflect the current layout
+  logElement.style.removeProperty("maxHeight");
+  logElement.style.removeProperty("minHeight");
+  logElement.style.removeProperty("height");
+  asideColumn.style.removeProperty("height");
+  mainColumn.style.removeProperty("minHeight");
   const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
   if(isStacked){
     resetLogSizing();

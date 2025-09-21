@@ -1,8 +1,17 @@
 from datetime import datetime, timezone
+from datetime import date
 from typing import Optional, Sequence, Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update
-from sirep.domain.models import Plan, Event, JobRun, DiscardedPlan, CaptureEvent
+from sirep.domain.models import (
+    Plan,
+    Event,
+    JobRun,
+    DiscardedPlan,
+    CaptureEvent,
+    TreatmentPlan,
+    TreatmentLog,
+)
 from sirep.domain.enums import PlanStatus, Step
 
 class PlanRepository:
@@ -122,3 +131,57 @@ class OccurrenceRepository:
         total = q.count()
         rows = q.offset((pagina-1)*tamanho).limit(tamanho).all()
         return rows, total
+
+
+class TreatmentPlanRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_all(self) -> List[TreatmentPlan]:
+        stmt = select(TreatmentPlan).order_by(TreatmentPlan.id.asc())
+        return list(self.db.scalars(stmt))
+
+    def get(self, treatment_id: int) -> Optional[TreatmentPlan]:
+        return self.db.scalar(select(TreatmentPlan).where(TreatmentPlan.id == treatment_id))
+
+    def by_plan_id(self, plan_id: int) -> Optional[TreatmentPlan]:
+        return self.db.scalar(select(TreatmentPlan).where(TreatmentPlan.plan_id == plan_id))
+
+    def add(self, plan: TreatmentPlan) -> TreatmentPlan:
+        self.db.add(plan)
+        self.db.flush()
+        return plan
+
+    def remove(self, plan: TreatmentPlan) -> None:
+        self.db.delete(plan)
+
+    def list_rescindidos_por_data(self, data: date) -> List[TreatmentPlan]:
+        stmt = select(TreatmentPlan).where(
+            TreatmentPlan.status == "rescindido",
+            TreatmentPlan.rescisao_data == data,
+        )
+        return list(self.db.scalars(stmt))
+
+
+class TreatmentLogRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def add(self, *, treatment_id: int, etapa: int, status: str, mensagem: str) -> TreatmentLog:
+        row = TreatmentLog(
+            treatment_id=treatment_id,
+            etapa=etapa,
+            status=status,
+            mensagem=mensagem,
+        )
+        self.db.add(row)
+        self.db.flush()
+        return row
+
+    def recentes(self, limit: int = 20) -> List[TreatmentLog]:
+        stmt = (
+            select(TreatmentLog)
+            .order_by(TreatmentLog.created_at.desc(), TreatmentLog.id.desc())
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt))

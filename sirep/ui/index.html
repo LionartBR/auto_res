@@ -124,6 +124,45 @@
     .modal-body p{margin:0;font-size:14px;font-weight:400;color:#000}
     .modal-actions{display:flex;justify-content:center;padding:0 20px 18px;background:#f7f7f7}
     .modal-actions .modal-button{min-width:96px;font-size:13px}
+
+    /* Tratamentos */
+    .treatment-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .treatment-controls .muted{margin-left:4px}
+    .treatment-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .treatment-actions input[type="date"]{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+    .treatment-grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+    .treatment-column{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+    #treatmentQueueTable{width:100%;border-collapse:collapse}
+    #treatmentQueueTable th,#treatmentQueueTable td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}
+    #treatmentQueueTable th{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
+    #treatmentQueueTable tbody tr:last-child td{border-bottom:0}
+    .queue-row.current{background:rgba(16,140,188,.08)}
+    .queue-row.rescindido{background:#ecfdf5}
+    .queue-row.descartado{background:#fef2f2}
+    .queue-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f3f4f6;color:#111;text-transform:uppercase}
+    .treatment-summary{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#111}
+    .treatment-summary strong{font-weight:800}
+    .treatment-empty{font-size:13px;color:var(--muted)}
+    .stage-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+    .stage{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:10px 12px;background:#f9fafb}
+    .stage-header{display:flex;justify-content:space-between;gap:10px;font-weight:700;font-size:13px;margin-bottom:4px}
+    .stage-status-label{font-weight:800;font-size:11px;text-transform:uppercase;color:var(--muted)}
+    .stage-dates{font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+    .stage.processando{border-left-color:#F7A600;background:#fff7ed}
+    .stage.processando .stage-status-label{color:#b45309}
+    .stage.concluido{border-left-color:#16a34a;background:#ecfdf5}
+    .stage.concluido .stage-status-label{color:#047857}
+    .stage.cancelado{border-left-color:#b91c1c;background:#fef2f2}
+    .stage.cancelado .stage-status-label{color:#b91c1c}
+    .stage.pendente{border-left-color:#d1d5db}
+    .treatment-downloads{display:flex;gap:10px;align-items:center;margin-top:6px}
+    .treatment-logs{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+    .treatment-logs table{width:100%;border-collapse:collapse}
+    .treatment-logs th,.treatment-logs td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;text-align:left}
+    .treatment-logs th{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
+    .treatment-logs tbody tr:last-child td{border-bottom:0}
+    .btn-link{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
+    .btn-link:hover{background:rgba(16,140,188,.08)}
   </style>
 </head>
 <body>
@@ -273,7 +312,60 @@
         </div>
       </section>
 
-      <section id="tab-tratamento" style="display:none"><p class="muted">Em breve.</p></section>
+      <section id="tab-tratamento" style="display:none">
+        <div class="treatment-controls">
+          <button id="btnTratamentoSeed">Gerar planos mock</button>
+          <button id="btnTratamentoIniciar" class="primary">Iniciar fila</button>
+          <span class="muted">Estado: <span id="tratamentoEstado">Ocioso</span></span>
+        </div>
+        <div class="treatment-actions">
+          <label class="muted" for="inputRescindidosData">Data para exportação:</label>
+          <input type="date" id="inputRescindidosData" aria-label="Data de rescisão" />
+          <button id="btnDownloadRescindidos" class="btn-link">Exportar Rescindidos_CNPJ.txt</button>
+        </div>
+        <div class="treatment-grid">
+          <div class="treatment-column" aria-live="polite">
+            <h3>Fila de planos</h3>
+            <div class="muted">Enquanto um plano estiver em tratamento os demais aguardam.</div>
+            <table id="treatmentQueueTable" aria-label="Fila de tratamentos">
+              <thead>
+                <tr>
+                  <th scope="col">Plano</th>
+                  <th scope="col">Razão social</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Etapa atual</th>
+                  <th scope="col">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyTratamentoFila"></tbody>
+            </table>
+            <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em tratamento. Gere mocks para iniciar.</div>
+          </div>
+          <div class="treatment-column">
+            <h3>Plano em execução</h3>
+            <div id="tratamentoAtualResumo" class="treatment-summary">Selecione ou aguarde um plano iniciar.</div>
+            <ul id="listaEtapas" class="stage-list"></ul>
+            <div class="treatment-downloads">
+              <button id="btnDownloadNotepad" class="btn-link" disabled>Baixar bloco de notas (.txt)</button>
+            </div>
+          </div>
+        </div>
+        <div class="treatment-logs">
+          <h3>Logs das etapas</h3>
+          <table aria-label="Eventos de tratamento">
+            <thead>
+              <tr>
+                <th scope="col">Data e hora</th>
+                <th scope="col">Plano</th>
+                <th scope="col">Etapa</th>
+                <th scope="col">Status</th>
+                <th scope="col">Mensagem</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyTratamentoLogs"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </div>
 </main>
@@ -336,6 +428,15 @@ function formatDateTime(value,options){
   const opts={timeZone:TIMEZONE,...(options||{})};
   return date.toLocaleString("pt-BR",opts);
 }
+const TREATMENT_STAGE_NAMES={
+  1:"Etapa 1 – Aproveitamento de Recolhimentos",
+  2:"Etapa 2 – Substituição – Confissão x Notificação Fiscal",
+  3:"Etapa 3 – Pesquisa de Guias no SFG (PIG)",
+  4:"Etapa 4 – Lançamento de Guias no FGE (PIG)",
+  5:"Etapa 5 – Situação do Plano",
+  6:"Etapa 6 – Rescisão",
+  7:"Etapa 7 – Comunicação da Rescisão"
+};
 const el={
   btnIniciar:$("#btnIniciar"), btnPausar:$("#btnPausar"), btnContinuar:$("#btnContinuar"),
   barTotal:$("#barTotal"), lblTotal:$("#lblTotal"), ultima:$("#ultimaAtualizacao"),
@@ -349,7 +450,13 @@ const el={
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk"), btnModalClose:$("#btnModalClose"),
   logsCard:$("#cardLogs"), logsHeader:$("#logsHeader"), logsBody:$("#logsBody"),
-  tbodyLogs:$("#tbodyLogs"), logsFrom:$("#logsFrom"), logsTo:$("#logsTo"), btnExportLogs:$("#btnExportLogs")
+  tbodyLogs:$("#tbodyLogs"), logsFrom:$("#logsFrom"), logsTo:$("#logsTo"), btnExportLogs:$("#btnExportLogs"),
+  tratamentoEstado:$("#tratamentoEstado"), btnTratamentoSeed:$("#btnTratamentoSeed"),
+  btnTratamentoIniciar:$("#btnTratamentoIniciar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
+  listaEtapas:$("#listaEtapas"), tratamentoResumo:$("#tratamentoAtualResumo"),
+  btnDownloadNotepad:$("#btnDownloadNotepad"), tratamentoEmpty:$("#tratamentoEmpty"),
+  tbodyTratamentoLogs:$("#tbodyTratamentoLogs"), inputRescindidosData:$("#inputRescindidosData"),
+  btnDownloadRescindidos:$("#btnDownloadRescindidos")
 };
 let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1,filtroSituacaoOcc="TODAS";
@@ -362,6 +469,10 @@ let filtroOcorrKeydownHandler=null;
 let logsOpen=false;
 let latestLogs=[];
 const MAX_LOGS=10;
+let tratamentoTimer=null;
+let tratamentoDados=null;
+let tratamentoLoading=false;
+let activeTab=null;
 
 function statusClass(s){
   const k=(s||"").toLowerCase();
@@ -762,6 +873,274 @@ function downloadBlob(blob,filename){
   a.remove(); URL.revokeObjectURL(url);
 }
 
+function setTratamentoEstado(estado){
+  if(!el.tratamentoEstado) return;
+  let label="Ocioso";
+  if(estado==="processando") label="Em execução";
+  else if(estado==="aguardando") label="Aguardando fila";
+  el.tratamentoEstado.textContent=label;
+}
+
+function formatTreatmentStatus(status){
+  const map={
+    pendente:"Pendente",
+    processando:"Processando",
+    rescindido:"Rescindido",
+    descartado:"Descartado"
+  };
+  const key=String(status||"").toLowerCase();
+  return map[key]||status||"";
+}
+
+function formatStageDisplayStatus(status){
+  const map={
+    pendente:"Pendente",
+    processando:"Em andamento",
+    concluido:"Concluída",
+    cancelado:"Cancelada"
+  };
+  const key=String(status||"").toLowerCase();
+  return map[key]||status||"";
+}
+
+function renderTratamentoResumo(plan){
+  if(!el.tratamentoResumo||!el.btnDownloadNotepad) return;
+  if(!plan){
+    el.tratamentoResumo.textContent="Selecione ou aguarde um plano iniciar.";
+    el.btnDownloadNotepad.disabled=true;
+    el.btnDownloadNotepad.dataset.planId="";
+    el.btnDownloadNotepad.dataset.numero="";
+    return;
+  }
+  const rescisao = plan.rescisao_data ? formatDateBR(plan.rescisao_data) : "—";
+  el.tratamentoResumo.innerHTML=`
+    <div class="treatment-summary">
+      <div><strong>Plano:</strong> ${plan.numero_plano}</div>
+      <div><strong>Razão social:</strong> ${plan.razao_social}</div>
+      <div><strong>CNPJs:</strong> ${Array.isArray(plan.cnpjs)?plan.cnpjs.join(", "):""}</div>
+      <div><strong>Bases:</strong> ${Array.isArray(plan.bases)?plan.bases.join(", "):""}</div>
+      <div><strong>Status:</strong> ${formatTreatmentStatus(plan.status)}</div>
+      <div><strong>Data da rescisão:</strong> ${rescisao}</div>
+    </div>`;
+  el.btnDownloadNotepad.disabled=false;
+  el.btnDownloadNotepad.dataset.planId=plan.id;
+  el.btnDownloadNotepad.dataset.numero=plan.numero_plano;
+}
+
+function renderTratamentoEtapas(plan){
+  if(!el.listaEtapas) return;
+  el.listaEtapas.innerHTML="";
+  if(!plan||!Array.isArray(plan.etapas)) return;
+  plan.etapas.forEach(stage=>{
+    const li=document.createElement("li");
+    const status=(stage.status||"").toLowerCase();
+    li.className=`stage ${status}`;
+    const nome=stage.nome||TREATMENT_STAGE_NAMES[stage.id]||`Etapa ${stage.id}`;
+    const inicio=stage.iniciado_em?formatDateTime(stage.iniciado_em,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+    const fim=stage.finalizado_em?formatDateTime(stage.finalizado_em,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+    li.innerHTML=`
+      <div class="stage-header">
+        <span>${stage.id}. ${nome}</span>
+        <span class="stage-status-label">${formatStageDisplayStatus(status)}</span>
+      </div>
+      <div class="stage-info">${stage.mensagem||""}</div>
+      <div class="stage-dates"><span>Início: ${inicio}</span><span>Término: ${fim}</span></div>
+    `;
+    el.listaEtapas.appendChild(li);
+  });
+}
+
+function renderTratamentoFila(data){
+  if(!el.tbodyTratamentoFila) return;
+  el.tbodyTratamentoFila.innerHTML="";
+  const planos=Array.isArray(data.planos)?data.planos:[];
+  const fila=Array.isArray(data.fila)?data.fila:[];
+  if(el.tratamentoEmpty) el.tratamentoEmpty.hidden=!!planos.length;
+  planos.forEach(plan=>{
+    const tr=document.createElement("tr");
+    tr.classList.add("queue-row");
+    if(plan.id===data.atual) tr.classList.add("current");
+    if(plan.status==="rescindido") tr.classList.add("rescindido");
+    if(plan.status==="descartado") tr.classList.add("descartado");
+    const pos=fila.indexOf(plan.id);
+    let badge="";
+    if(plan.id===data.atual) badge="Em execução";
+    else if(plan.status==="pendente"&&pos>=0) badge=`Na fila #${pos+1}`;
+    else if(plan.status==="rescindido") badge="Rescindido";
+    else if(plan.status==="descartado") badge="Descartado";
+    const badgeHtml=badge?`<span class="queue-badge">${badge}</span>`:"";
+    const etapaAtual=plan.etapa_atual?`${plan.etapa_atual} / 7`:"—";
+    const btn=`<button class="btn-link" data-action="download-notepad" data-plan-id="${plan.id}" data-numero="${plan.numero_plano}">Bloco (.txt)</button>`;
+    tr.innerHTML=`
+      <td>${plan.numero_plano}</td>
+      <td>${plan.razao_social}</td>
+      <td>${formatTreatmentStatus(plan.status)} ${badgeHtml}</td>
+      <td>${etapaAtual}</td>
+      <td>${btn}</td>
+    `;
+    el.tbodyTratamentoFila.appendChild(tr);
+  });
+}
+
+function formatLogStatus(status){
+  if(!status) return "";
+  const map={SUCESSO:"Sucesso",INICIO:"Início",DESCARTADO:"Descartado"};
+  const upper=String(status).toUpperCase();
+  if(map[upper]) return map[upper];
+  return upper.charAt(0)+upper.slice(1).toLowerCase();
+}
+
+function renderTratamentoLogs(logs,planos){
+  if(!el.tbodyTratamentoLogs) return;
+  el.tbodyTratamentoLogs.innerHTML="";
+  const map=new Map((Array.isArray(planos)?planos:[]).map(p=>[p.id,p]));
+  (Array.isArray(logs)?logs:[])
+    .slice()
+    .sort((a,b)=>{
+      const da=a.created_at?new Date(a.created_at).getTime():0;
+      const db=b.created_at?new Date(b.created_at).getTime():0;
+      return db-da;
+    })
+    .forEach(log=>{
+      const tr=document.createElement("tr");
+      const plan=map.get(log.treatment_id);
+      const etapaNome=TREATMENT_STAGE_NAMES[log.etapa]||`Etapa ${log.etapa}`;
+      const quando=log.created_at?formatDateTime(log.created_at,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"";
+      tr.innerHTML=`
+        <td>${quando}</td>
+        <td>${plan?plan.numero_plano:"—"}</td>
+        <td>${etapaNome}</td>
+        <td>${formatLogStatus(log.status)}</td>
+        <td>${log.mensagem||""}</td>
+      `;
+      el.tbodyTratamentoLogs.appendChild(tr);
+    });
+}
+
+function atualizarTratamentoUI(data){
+  tratamentoDados=data;
+  setTratamentoEstado(data.estado);
+  const planos=Array.isArray(data.planos)?data.planos:[];
+  const atualId=data.atual;
+  const planoAtual=planos.find(p=>p.id===atualId)||planos.find(p=>p.status==="processando")||null;
+  renderTratamentoResumo(planoAtual);
+  renderTratamentoEtapas(planoAtual);
+  renderTratamentoFila(data);
+  renderTratamentoLogs(data.logs||[],planos);
+}
+
+async function carregarTratamentoStatus(){
+  if(tratamentoLoading) return;
+  tratamentoLoading=true;
+  try{
+    const data=await api("/tratamentos/status");
+    atualizarTratamentoUI(data);
+  }catch(e){
+    console.error("Falha ao carregar tratamentos",e);
+  }finally{
+    tratamentoLoading=false;
+  }
+}
+
+function startTratamentoPolling(){
+  stopTratamentoPolling();
+  tratamentoTimer=setInterval(()=>{carregarTratamentoStatus();},4000);
+}
+
+function stopTratamentoPolling(){
+  if(tratamentoTimer){
+    clearInterval(tratamentoTimer);
+    tratamentoTimer=null;
+  }
+}
+
+function ativarTratamentoTab(){
+  carregarTratamentoStatus();
+  startTratamentoPolling();
+}
+
+function desativarTratamentoTab(){
+  stopTratamentoPolling();
+}
+
+async function seedTratamento(){
+  if(!el.btnTratamentoSeed) return;
+  el.btnTratamentoSeed.disabled=true;
+  try{
+    await api("/tratamentos/seed?quantidade=3",{method:"POST"});
+    await api("/tratamentos/iniciar",{method:"POST"});
+    await carregarTratamentoStatus();
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível gerar os planos de tratamento.");
+  }finally{
+    el.btnTratamentoSeed.disabled=false;
+  }
+}
+
+async function iniciarTratamento(){
+  if(!el.btnTratamentoIniciar) return;
+  el.btnTratamentoIniciar.disabled=true;
+  try{
+    await api("/tratamentos/iniciar",{method:"POST"});
+    await carregarTratamentoStatus();
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível iniciar a fila de tratamento.");
+  }finally{
+    el.btnTratamentoIniciar.disabled=false;
+  }
+}
+
+async function downloadTratamentoNotepad(id,numero){
+  if(!id) return;
+  try{
+    const res=await fetch(`/tratamentos/${id}/notepad`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob=await res.blob();
+    const filename=numero?`bloco_plano_${numero}.txt`:`bloco_plano_${id}.txt`;
+    downloadBlob(blob,filename);
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível baixar o bloco de notas do plano.");
+  }
+}
+
+async function downloadRescindidos(){
+  if(!el.inputRescindidosData||!el.btnDownloadRescindidos) return;
+  const value=el.inputRescindidosData.value;
+  if(!value){
+    alert("Informe a data para gerar o arquivo de rescindidos.");
+    return;
+  }
+  el.btnDownloadRescindidos.disabled=true;
+  try{
+    const res=await fetch(`/tratamentos/rescindidos-txt?data=${value}`);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob=await res.blob();
+    downloadBlob(blob,"Rescindidos_CNPJ.txt");
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível gerar o arquivo Rescindidos_CNPJ.txt.");
+  }finally{
+    el.btnDownloadRescindidos.disabled=false;
+  }
+}
+
+function setActiveTab(name){
+  if(!name) return;
+  if(name===activeTab) return;
+  activeTab=name;
+  document.querySelectorAll(".tab").forEach(tab=>{
+    tab.classList.toggle("active",tab.dataset.tab===name);
+  });
+  document.querySelectorAll(".content > section").forEach(section=>{
+    section.style.display=section.id===`tab-${name}`?"block":"none";
+  });
+  if(name==="tratamento") ativarTratamentoTab();
+  else desativarTratamentoTab();
+}
+
 function toISODate(val){
   return /^\d{4}-\d{2}-\d{2}$/.test(val)?val:"";
 }
@@ -800,6 +1179,53 @@ async function exportLogsXlsx(){
 if(el.btnExportLogs){
   el.btnExportLogs.addEventListener("click",(e)=>{e.preventDefault();exportLogsXlsx();});
 }
+
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click",event=>{
+    event.preventDefault();
+    const target=tab.dataset.tab;
+    if(target) setActiveTab(target);
+  });
+});
+
+if(el.btnTratamentoSeed){
+  el.btnTratamentoSeed.addEventListener("click",event=>{
+    event.preventDefault();
+    seedTratamento();
+  });
+}
+
+if(el.btnTratamentoIniciar){
+  el.btnTratamentoIniciar.addEventListener("click",event=>{
+    event.preventDefault();
+    iniciarTratamento();
+  });
+}
+
+if(el.btnDownloadNotepad){
+  el.btnDownloadNotepad.addEventListener("click",event=>{
+    event.preventDefault();
+    const id=Number(el.btnDownloadNotepad.dataset.planId||"0");
+    const numero=el.btnDownloadNotepad.dataset.numero||"";
+    if(id) downloadTratamentoNotepad(id,numero);
+  });
+}
+
+if(el.btnDownloadRescindidos){
+  el.btnDownloadRescindidos.addEventListener("click",event=>{
+    event.preventDefault();
+    downloadRescindidos();
+  });
+}
+
+document.addEventListener("click",event=>{
+  const target=event.target.closest('[data-action="download-notepad"]');
+  if(!target) return;
+  event.preventDefault();
+  const id=Number(target.getAttribute("data-plan-id")||"0");
+  const numero=target.getAttribute("data-numero")||"";
+  if(id) downloadTratamentoNotepad(id,numero);
+});
 
 el.subtabPlanos.onclick=()=>{fecharFiltroOcorrMenu();el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";};
 el.subtabOcorr.onclick=()=>{fecharFiltroOcorrMenu();el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();};
@@ -857,6 +1283,10 @@ document.addEventListener("keydown",event=>{
 });
 
 document.addEventListener("DOMContentLoaded", async()=>{
+  if(el.inputRescindidosData){
+    try{el.inputRescindidosData.value=new Date().toISOString().slice(0,10);}catch(_e){}
+  }
+  setActiveTab("gestao");
   await carregarStatus();
   await carregarPlanos();
   startPolling();

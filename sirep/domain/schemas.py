@@ -36,6 +36,10 @@ class PlanOut(BaseModel):
     dt_parcela_atraso: Optional[date] = None
     representacao: Optional[str] = None
     status: PlanStatus
+    data_rescisao: Optional[date] = None
+    data_comunicacao: Optional[date] = None
+    metodo_comunicacao: Optional[str] = None
+    referencia_comunicacao: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -64,3 +68,41 @@ class JobStatus(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime] = None
     info: Optional[str] = None
+
+
+class TreatmentStageOut(BaseModel):
+    id: int
+    nome: str
+    status: str
+    iniciado_em: Optional[datetime] = None
+    finalizado_em: Optional[datetime] = None
+    mensagem: Optional[str] = None
+
+
+class TreatmentPlanOut(BaseModel):
+    id: int
+    plan_id: int
+    numero_plano: str
+    razao_social: str
+    status: str
+    etapa_atual: int
+    periodo: Optional[str] = None
+    cnpjs: List[str]
+    bases: List[str]
+    rescisao_data: Optional[date] = None
+    etapas: List[TreatmentStageOut]
+
+    class Config:
+        from_attributes = True
+
+
+class TreatmentLogOut(BaseModel):
+    id: int
+    treatment_id: int
+    etapa: int
+    status: str
+    mensagem: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

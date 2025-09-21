@@ -48,9 +48,11 @@
     .filter-option{display:flex;width:100%;padding:8px 10px;border:0;background:transparent;font-weight:600;color:var(--text);border-radius:8px;cursor:pointer;text-align:left}
     .filter-option:hover,.filter-option:focus-visible{background:rgba(16,140,188,.12);outline:none}
     .filter-option.active{color:var(--accent);background:rgba(16,140,188,.08)}
-    .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,24vw,360px);gap:16px;align-items:stretch} @media (max-width:980px){.grid{grid-template-columns:1fr}}
-    .grid>aside{display:flex;flex-direction:column;min-height:0}
-    .log{border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;background:#fafafa;flex:1 1 auto;min-height:280px}
+    .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,24vw,360px);gap:16px;align-items:stretch}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .grid > div,
+    .grid > aside{display:flex;flex-direction:column;min-height:0}
+    .log{flex:1 1 auto;min-height:280px;height:auto;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fafafa}
     .log p{margin:0 0 6px}
     .log .log-active{font-weight:600}
     .log .log-history{color:var(--muted);font-size:12px}
@@ -276,118 +278,6 @@ const el={
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk"), btnModalClose:$("#btnModalClose")
 };
-const mainColumn=document.querySelector(".grid > div");
-const asideColumn=document.querySelector(".grid > aside");
-const logElement=el.log;
-const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationFrame==="function")
-  ? window.requestAnimationFrame.bind(window)
-  : (fn)=>setTimeout(fn,16);
-const MIN_LOG_HEIGHT=280;
-let logHeightFrame=null;
-let shouldAutoScrollLog=true;
-function resetLogSizing(){
-  if(logElement){
-    logElement.style.removeProperty("maxHeight");
-    logElement.style.removeProperty("minHeight");
-    logElement.style.removeProperty("height");
-  }
-  if(asideColumn){
-    asideColumn.style.removeProperty("height");
-  }
-  if(mainColumn){
-    mainColumn.style.removeProperty("minHeight");
-    mainColumn.style.removeProperty("maxHeight");
-    mainColumn.style.removeProperty("overflow");
-  }
-}
-function getMainIntrinsicHeight(mainRect){
-  if(!mainColumn){
-    return mainRect&&Number.isFinite(mainRect.height)?mainRect.height:0;
-  }
-  let columnStyle;
-  try{
-    columnStyle=getComputedStyle(mainColumn);
-  }catch(_e){
-    return mainRect&&Number.isFinite(mainRect.height)?mainRect.height:0;
-  }
-  const borderTop=parseFloat(columnStyle.borderTopWidth)||0;
-  const borderBottom=parseFloat(columnStyle.borderBottomWidth)||0;
-  const paddingTop=parseFloat(columnStyle.paddingTop)||0;
-  const paddingBottom=parseFloat(columnStyle.paddingBottom)||0;
-  const verticalExtras=borderTop+borderBottom+paddingTop+paddingBottom;
-  const scrollHeight=Number.isFinite(mainColumn.scrollHeight)
-    ? mainColumn.scrollHeight+borderTop+borderBottom
-    : 0;
-  const offsetHeight=Number.isFinite(mainColumn.offsetHeight)?mainColumn.offsetHeight:0;
-  const rectHeight=mainRect&&Number.isFinite(mainRect.height)?mainRect.height:0;
-  const candidates=[scrollHeight,offsetHeight,rectHeight,verticalExtras]
-    .filter(value=>Number.isFinite(value)&&value>0);
-  if(candidates.length===0){
-    return 0;
-  }
-  return Math.max(...candidates);
-}
-function syncLogHeight(){
-  if(!mainColumn||!asideColumn||!logElement){
-    resetLogSizing();
-    return;
-  }
-  // clear previous inline sizing so measurements reflect the current layout
-  logElement.style.removeProperty("maxHeight");
-  logElement.style.removeProperty("minHeight");
-  logElement.style.removeProperty("height");
-  asideColumn.style.removeProperty("height");
-  mainColumn.style.removeProperty("minHeight");
-  mainColumn.style.removeProperty("maxHeight");
-  mainColumn.style.removeProperty("overflow");
-  const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
-  if(isStacked){
-    resetLogSizing();
-    return;
-  }
-  const mainRect=mainColumn.getBoundingClientRect();
-  if(mainRect.height<=0){
-    resetLogSizing();
-    return;
-  }
-  const mainContentHeight=getMainIntrinsicHeight(mainRect);
-  const asideRect=asideColumn.getBoundingClientRect();
-  const asideStyle=getComputedStyle(asideColumn);
-  const logStyle=getComputedStyle(logElement);
-  const logRect=logElement.getBoundingClientRect();
-  const relativeTop=logRect.top-asideRect.top;
-  const logMarginBottom=parseFloat(logStyle.marginBottom)||0;
-  const bottomSpacing=logMarginBottom+(parseFloat(asideStyle.paddingBottom)||0)+(parseFloat(asideStyle.borderBottomWidth)||0);
-  const available=Math.max(0,mainContentHeight-relativeTop-bottomSpacing);
-  if(available<=0){
-    resetLogSizing();
-    return;
-  }
-  const targetHeight=Math.max(MIN_LOG_HEIGHT,available);
-  const requiredHeight=relativeTop+targetHeight+bottomSpacing;
-  const finalAsideHeight=Math.max(mainContentHeight,requiredHeight);
-  const size=`${targetHeight}px`;
-  logElement.style.maxHeight=size;
-  logElement.style.minHeight=size;
-  logElement.style.height=size;
-  asideColumn.style.height=`${finalAsideHeight}px`;
-  mainColumn.style.minHeight=`${finalAsideHeight}px`;
-  mainColumn.style.removeProperty("maxHeight");
-  mainColumn.style.removeProperty("overflow");
-}
-function scheduleLogSync(){
-  if(logHeightFrame!==null) return;
-  logHeightFrame=requestFrame(()=>{
-    logHeightFrame=null;
-    syncLogHeight();
-  });
-}
-if(typeof ResizeObserver==="function"){
-  const observer=new ResizeObserver(()=>scheduleLogSync());
-  if(mainColumn) observer.observe(mainColumn);
-  if(asideColumn) observer.observe(asideColumn);
-}
-window.addEventListener("resize",scheduleLogSync);
 let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1,filtroSituacaoOcc="TODAS";
 let timer=null;
@@ -396,6 +286,7 @@ let filtroOcorrOutsideHandler=null;
 let filtroOcorrScrollHandler=null;
 let filtroOcorrResizeHandler=null;
 let filtroOcorrKeydownHandler=null;
+let shouldAutoScrollLog=true;
 
 function abrirModalConclusao(){
   if(!el.modalConcluido) return;
@@ -483,7 +374,6 @@ async function carregarPlanos(){
   });
   attachCopyHandlers(el.tbody);
   updateFooter(totalRegistros>0);
-  scheduleLogSync();
 }
 
 async function carregarOcorrencias(){
@@ -512,7 +402,6 @@ async function carregarOcorrencias(){
   attachCopyHandlers(el.tbodyOcc);
   updateFooterOcc(totalRegistros>0);
   atualizarFiltroOcorrMenu();
-  scheduleLogSync();
 }
 
 function atualizarFiltroOcorrMenu(){
@@ -700,7 +589,6 @@ function renderLog(_emProgresso, historico){
     container.scrollTop=Math.min(prevScrollTop,maxScroll);
   }
   shouldAutoScrollLog=false;
-  scheduleLogSync();
 }
 
 async function carregarStatus(){
@@ -734,8 +622,8 @@ el.btnAnterior.onclick=()=>{if(pagina>1){pagina-=1;carregarPlanos()}};
 el.btnProximoOcc.onclick=()=>{if(paginaOcc<maxPaginasOcc){paginaOcc+=1;carregarOcorrencias()}};
 el.btnAnteriorOcc.onclick=()=>{if(paginaOcc>1){paginaOcc-=1;carregarOcorrencias()}};
 
-el.subtabPlanos.onclick=()=>{fecharFiltroOcorrMenu();el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";scheduleLogSync();};
-el.subtabOcorr.onclick=()=>{fecharFiltroOcorrMenu();el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();scheduleLogSync();};
+el.subtabPlanos.onclick=()=>{fecharFiltroOcorrMenu();el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";};
+el.subtabOcorr.onclick=()=>{fecharFiltroOcorrMenu();el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();};
 
 if(el.filtroOcorrToggle){
   el.filtroOcorrToggle.addEventListener("click",event=>{
@@ -789,7 +677,7 @@ document.addEventListener("keydown",event=>{
   }
 });
 
-document.addEventListener("DOMContentLoaded", async()=>{await carregarStatus();await carregarPlanos();startPolling();scheduleLogSync();});
+document.addEventListener("DOMContentLoaded", async()=>{await carregarStatus();await carregarPlanos();startPolling();});
 </script>
 </body>
 </html>

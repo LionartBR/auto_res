@@ -35,7 +35,7 @@ class Plan(Base):
     representacao = Column(String(64), nullable=True)
     tipo_parcelamento = Column(String(8), nullable=True)
     saldo_total = Column(Float, nullable=True)
-    status = Column(String(16), nullable=True)  # requerido pelo upsert
+    status = Column(String(16), nullable=True)
     data_rescisao = Column(Date, nullable=True)
     data_comunicacao = Column(Date, nullable=True)
     metodo_comunicacao = Column(String(16), nullable=True)

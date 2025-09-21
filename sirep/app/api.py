@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
+from datetime import date, datetime, time, timezone
+from io import BytesIO
 from pathlib import Path
+from typing import Optional
+from zoneinfo import ZoneInfo
+from zipfile import ZipFile, ZIP_DEFLATED
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
+from xml.sax.saxutils import escape
 
 from sirep import __version__
 from sirep.app.captura import captura
@@ -19,7 +24,7 @@ from sirep.domain.schemas import DiscardedPlanOut, PlanOut
 from sirep.infra.db import SessionLocal, init_db
 from sirep.infra.logging import setup_logging
 from sirep.services.notepad import build_notepad_txt
-from sirep.infra.repositories import TreatmentPlanRepository
+from sirep.infra.repositories import PlanLogRepository, TreatmentPlanRepository
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,151 @@ app = FastAPI(title="SIREP 2.0", version=__version__)
 
 ui_dir = Path(__file__).resolve().parent.parent / "ui"
 app.mount("/app", StaticFiles(directory=str(ui_dir), html=True), name="ui")
+
+DISPLAY_TZ = ZoneInfo("America/Sao_Paulo")
+
+CONTENT_TYPES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">
+  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>
+  <Default Extension=\"xml\" ContentType=\"application/xml\"/>
+  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>
+  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>
+  <Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>
+</Types>
+"""
+
+ROOT_RELS_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">
+  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>
+</Relationships>
+"""
+
+WORKBOOK_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">
+  <sheets>
+    <sheet name=\"Logs\" sheetId=\"1\" r:id=\"rId1\"/>
+  </sheets>
+</workbook>
+"""
+
+WORKBOOK_RELS_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">
+  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>
+  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>
+</Relationships>
+"""
+
+STYLES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
+<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">
+  <fonts count=\"1\"><font><name val=\"Calibri\"/><family val=\"2\"/><sz val=\"11\"/></font></fonts>
+  <fills count=\"1\"><fill><patternFill patternType=\"none\"/></fill></fills>
+  <borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>
+  <cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs>
+  <cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>
+</styleSheet>
+"""
+
+
+def _col_letter(idx: int) -> str:
+    result = ""
+    current = idx
+    while current >= 0:
+        current, remainder = divmod(current, 26)
+        result = chr(ord("A") + remainder) + result
+        current -= 1
+    return result
+
+
+def _format_datetime_local(dt: Optional[datetime]) -> str:
+    if dt is None:
+        return ""
+    value = dt
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    try:
+        local = value.astimezone(DISPLAY_TZ)
+    except Exception:
+        local = value
+    return local.strftime("%d/%m/%Y %H:%M:%S")
+
+
+def _serialize_log(log) -> dict:
+    created_at = log.created_at
+    if created_at and created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return {
+        "id": log.id,
+        "contexto": log.contexto,
+        "treatment_id": log.treatment_id,
+        "numero_plano": log.numero_plano,
+        "etapa": log.etapa_numero,
+        "etapa_nome": log.etapa_nome,
+        "status": log.status,
+        "mensagem": log.mensagem,
+        "created_at": created_at.isoformat() if created_at else None,
+    }
+
+
+def _build_logs_sheet(rows: list[dict]) -> str:
+    headers = ["Data e hora", "Plano", "Etapa", "Status", "Mensagem"]
+    sheet_rows: list[str] = []
+    header_cells = []
+    for idx, title in enumerate(headers):
+        col = _col_letter(idx)
+        header_cells.append(
+            f'<c r="{col}1" t="inlineStr"><is><t>{escape(title)}</t></is></c>'
+        )
+    sheet_rows.append(f'<row r="1">{"".join(header_cells)}</row>')
+
+    for row_index, row in enumerate(rows, start=2):
+        values = [
+            row.get("created_at_display", ""),
+            row.get("numero_plano") or "",
+            row.get("etapa_nome") or "",
+            row.get("status") or "",
+            row.get("mensagem") or "",
+        ]
+        cells = []
+        for col_idx, value in enumerate(values):
+            col = _col_letter(col_idx)
+            text = escape(str(value)) if value is not None else ""
+            cells.append(
+                f'<c r="{col}{row_index}" t="inlineStr"><is><t>{text}</t></is></c>'
+            )
+        sheet_rows.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+
+    sheet_data = "".join(sheet_rows)
+    return (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+        "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+        f"<sheetData>{sheet_data}</sheetData>"
+        "</worksheet>"
+    )
+
+
+def _build_logs_xlsx(rows: list[dict]) -> bytes:
+    sheet_xml = _build_logs_sheet(rows)
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", CONTENT_TYPES_XML)
+        zf.writestr("_rels/.rels", ROOT_RELS_XML)
+        zf.writestr("xl/workbook.xml", WORKBOOK_XML)
+        zf.writestr("xl/_rels/workbook.xml.rels", WORKBOOK_RELS_XML)
+        zf.writestr("xl/styles.xml", STYLES_XML)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _intervalo_datetimes(
+    data_inicial: Optional[date], data_final: Optional[date]
+) -> tuple[Optional[datetime], Optional[datetime]]:
+    if data_inicial is None or data_final is None:
+        return None, None
+    inicio_local = datetime.combine(data_inicial, time.min, tzinfo=DISPLAY_TZ)
+    fim_local = datetime.combine(data_final, time.max, tzinfo=DISPLAY_TZ)
+    return inicio_local.astimezone(timezone.utc), fim_local.astimezone(timezone.utc)
 
 @app.get("/")
 def root():
@@ -101,7 +251,10 @@ async def captura_status():
                 "mensagem": h.mensagem,
                 "progresso": h.progresso,
                 "etapa": h.etapa,
+                "etapa_nome": h.etapa_nome,
+                "status": h.status,
                 "timestamp": h.timestamp,
+                "contexto": "gestao",
             }
             for h in st.historico
         ],
@@ -223,6 +376,69 @@ def tratamentos_rescindidos_txt(data: date):
         return response
     finally:
         db.close()
+
+
+@app.get("/logs")
+def listar_logs(
+    limit: int = 40,
+    order: str = "desc",
+    contexto: Optional[str] = None,
+    data_inicial: Optional[date] = Query(None, alias="from"),
+    data_final: Optional[date] = Query(None, alias="to"),
+):
+    ordem = order.lower()
+    order_value = "asc" if ordem == "asc" else "desc"
+    limite = max(1, min(limit, 200))
+    inicio, fim = _intervalo_datetimes(data_inicial, data_final)
+
+    with SessionLocal() as db:
+        repo = PlanLogRepository(db)
+        if inicio and fim:
+            registros = repo.intervalo(inicio=inicio, fim=fim, contexto=contexto)
+            if order_value == "desc":
+                registros = list(reversed(registros))
+            registros = registros[:limite]
+        else:
+            registros = repo.recentes(limit=limite, contexto=contexto, order=order_value)
+
+    items = [_serialize_log(log) for log in registros]
+    return {"items": items, "count": len(items)}
+
+
+@app.get("/logs/export")
+def exportar_logs(
+    from_: date = Query(..., alias="from"),
+    to: date = Query(..., alias="to"),
+    contexto: Optional[str] = None,
+):
+    if from_ > to:
+        raise HTTPException(status_code=400, detail="intervalo inválido")
+    inicio, fim = _intervalo_datetimes(from_, to)
+    if inicio is None or fim is None:
+        raise HTTPException(status_code=400, detail="intervalo inválido")
+
+    with SessionLocal() as db:
+        repo = PlanLogRepository(db)
+        registros = repo.intervalo(inicio=inicio, fim=fim, contexto=contexto)
+
+    rows = []
+    for log in registros:
+        data = _serialize_log(log)
+        data["created_at_display"] = _format_datetime_local(log.created_at)
+        rows.append(data)
+
+    content = _build_logs_xlsx(rows)
+    stream = BytesIO(content)
+    filename = f"logs_sirep_{from_.strftime('%Y%m%d')}_{to.strftime('%Y%m%d')}.xlsx"
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{filename}\"",
+    }
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
 
 # ---- Debug endpoint (força erro p/ validar logger) ----
 @app.get("/debug/boom")

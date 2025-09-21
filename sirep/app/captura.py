@@ -14,8 +14,9 @@ from sirep.infra.repositories import (
     PlanRepository,
     EventRepository,
     OccurrenceRepository,
-    CaptureEventRepository,
+    PlanLogRepository,
 )
+from sirep.domain.logs import GESTAO_STAGE_LABELS, infer_gestao_stage_numero
 from sirep.shared.fakes import gerar_razao_social
 from sirep.domain.enums import PlanStatus, Step
 
@@ -39,6 +40,8 @@ class PlanoHistorico:
     progresso: int
     etapa: str
     timestamp: str
+    status: str = "INFO"
+    etapa_nome: Optional[str] = None
 
 @dataclass
 class CapturaStatus:
@@ -161,10 +164,11 @@ class CapturaService:
         )
 
         self._registrar_historico(
-            numero_plano="",
+            numero_plano=None,
             progresso=0,
             etapa="",
             mensagem="Processamento iniciado.",
+            status="INICIO",
         )
 
         loop = self._ensure_loop()
@@ -208,11 +212,17 @@ class CapturaService:
         self._status.estado = "pausado"
         if self._pause_evt is not None:
             self._run_on_loop(self._pause_evt.clear)
+        numero_atual, etapa_atual = self._plano_em_execucao()
+        etapa_nome = GESTAO_STAGE_LABELS.get(etapa_atual) if etapa_atual else ""
+        mensagem = (
+            f"Etapa {etapa_atual} pausada" if etapa_atual else "Processamento pausado."
+        )
         self._registrar_historico(
-            numero_plano="",
-            progresso=0,
-            etapa="",
-            mensagem="Processamento pausado.",
+            numero_plano=numero_atual,
+            progresso=etapa_atual or 0,
+            etapa=etapa_nome or "",
+            mensagem=mensagem,
+            status="PAUSADO",
         )
         logger.info("captura pausada")
 
@@ -227,11 +237,17 @@ class CapturaService:
         self._status.estado = "executando"
         if self._pause_evt is not None:
             self._run_on_loop(self._pause_evt.set)
+        numero_atual, etapa_atual = self._plano_em_execucao()
+        etapa_nome = GESTAO_STAGE_LABELS.get(etapa_atual) if etapa_atual else ""
+        mensagem = (
+            f"Etapa {etapa_atual} retomada" if etapa_atual else "Processamento retomado."
+        )
         self._registrar_historico(
-            numero_plano="",
-            progresso=0,
-            etapa="",
-            mensagem="Processamento retomado.",
+            numero_plano=numero_atual,
+            progresso=etapa_atual or 0,
+            etapa=etapa_nome or "",
+            mensagem=mensagem,
+            status="RETOMADO",
         )
         logger.info("captura continuada")
 
@@ -283,6 +299,7 @@ class CapturaService:
                         progresso=4,
                         etapa="",
                         mensagem="Processamento concluído.",
+                        status="CONCLUIDO",
                     )
             if self._pause_evt is not None:
                 self._pause_evt.set()
@@ -298,33 +315,54 @@ class CapturaService:
             return info.etapas[idx]
         return ""
 
+    def _plano_em_execucao(self) -> tuple[Optional[str], Optional[int]]:
+        if not self._status.em_progresso:
+            return None, None
+        numero, info = next(iter(self._status.em_progresso.items()))
+        total_etapas = len(info.etapas or [])
+        etapa_atual = info.progresso + 1
+        if total_etapas:
+            etapa_atual = max(1, min(etapa_atual, total_etapas))
+        else:
+            etapa_atual = info.progresso if info.progresso > 0 else None
+        return numero, etapa_atual
+
     def _registrar_historico(
         self,
         *,
-        numero_plano: str,
+        numero_plano: Optional[str],
         progresso: int,
         etapa: str,
         mensagem: str,
+        status: str = "INFO",
     ) -> None:
         self._ensure_history_loaded()
         timestamp_dt = datetime.now(timezone.utc)
         timestamp = timestamp_dt.isoformat()
+        etapa_numero = infer_gestao_stage_numero(etapa, progresso)
+        etapa_nome = GESTAO_STAGE_LABELS.get(etapa_numero)
+        status_norm = (status or "INFO").upper()
+        numero_norm = (numero_plano or "").strip()
         evento = PlanoHistorico(
-            numero_plano=numero_plano,
+            numero_plano=numero_norm,
             mensagem=mensagem,
             progresso=progresso,
             etapa=etapa,
             timestamp=timestamp,
+            status=status_norm,
+            etapa_nome=etapa_nome,
         )
         try:
             with SessionLocal() as db:
-                repo = CaptureEventRepository(db)
-                repo.add_event(
-                    numero_plano=numero_plano,
+                repo = PlanLogRepository(db)
+                repo.add(
+                    contexto="gestao",
+                    numero_plano=numero_norm or None,
                     mensagem=mensagem,
-                    progresso=progresso,
-                    etapa=etapa,
-                    timestamp=timestamp_dt,
+                    status=status_norm,
+                    etapa_numero=etapa_numero,
+                    etapa_nome=etapa_nome,
+                    created_at=timestamp_dt,
                 )
                 db.commit()
         except Exception:
@@ -340,25 +378,31 @@ class CapturaService:
             return
         try:
             with SessionLocal() as db:
-                repo = CaptureEventRepository(db)
-                eventos = repo.get_recent(self._history_limit)
+                repo = PlanLogRepository(db)
+                eventos = repo.recentes(
+                    limit=self._history_limit,
+                    contexto="gestao",
+                    order="desc",
+                )
         except Exception:
             logger.exception("erro ao carregar histórico da captura")
             return
 
         historico: List[PlanoHistorico] = []
         for ev in reversed(eventos):
-            timestamp_dt = ev.timestamp
+            timestamp_dt = ev.created_at
             if timestamp_dt and timestamp_dt.tzinfo is None:
                 timestamp_dt = timestamp_dt.replace(tzinfo=timezone.utc)
             ts = timestamp_dt.isoformat() if timestamp_dt else None
             historico.append(
                 PlanoHistorico(
-                    numero_plano=ev.numero_plano,
+                    numero_plano=ev.numero_plano or "",
                     mensagem=ev.mensagem,
-                    progresso=ev.progresso,
-                    etapa=ev.etapa,
+                    progresso=ev.etapa_numero or 0,
+                    etapa=ev.etapa_nome or "",
                     timestamp=ts or datetime.now(timezone.utc).isoformat(),
+                    status=ev.status or "INFO",
+                    etapa_nome=ev.etapa_nome,
                 )
             )
         self._status.historico = historico
@@ -401,6 +445,7 @@ class CapturaService:
                     progresso=2,
                     etapa=self._obter_etapa(numero_plano, 2),
                     mensagem="Descartado: SIT ESPECIAL",
+                    status="DESCARTADO",
                 )
                 await self._wait_resume()
                 st.falhas += 1
@@ -429,6 +474,7 @@ class CapturaService:
                     progresso=3,
                     etapa=self._obter_etapa(numero_plano, 3),
                     mensagem=f"Descartado: {sit}",
+                    status="DESCARTADO",
                 )
                 await self._wait_resume()
                 st.falhas += 1
@@ -455,6 +501,7 @@ class CapturaService:
                     progresso=4,
                     etapa=self._obter_etapa(numero_plano, 4),
                     mensagem="Descartado: GRDE Emitida",
+                    status="DESCARTADO",
                 )
                 await self._wait_resume()
                 st.falhas += 1
@@ -481,6 +528,7 @@ class CapturaService:
                     progresso=4,
                     etapa=self._obter_etapa(numero_plano, 4),
                     mensagem=f"Descartado: {situacao_final}",
+                    status="DESCARTADO",
                 )
                 await self._wait_resume()
                 st.falhas += 1
@@ -523,6 +571,7 @@ class CapturaService:
                 progresso=4,
                 etapa=self._obter_etapa(numero_plano, 4),
                 mensagem="Capturado com sucesso",
+                status="SUCESSO",
             )
 
         except Exception:
@@ -539,6 +588,7 @@ class CapturaService:
                 progresso=progresso_atual,
                 etapa=etapa,
                 mensagem="Falha inesperada",
+                status="FALHA",
             )
         finally:
             await self._wait_resume()

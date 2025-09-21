@@ -1,11 +1,12 @@
 from sirep.app.captura import CapturaService
-from sirep.domain.models import CaptureEvent
+from sirep.app.captura import CapturaService
+from sirep.domain.models import PlanLog
 from sirep.infra.db import SessionLocal, init_db
 
 
 def _limpar_historico():
     with SessionLocal() as db:
-        db.query(CaptureEvent).delete()
+        db.query(PlanLog).delete()
         db.commit()
 
 
@@ -23,6 +24,9 @@ def test_historico_persiste_entre_instancias():
             etapa=f"Etapa {idx % 4}",
             mensagem=f"Evento {idx}",
         )
+
+    with SessionLocal() as db:
+        assert db.query(PlanLog).count() == 7
 
     # Garante que o próprio serviço respeita o limite em memória
     historico_atual = service.status().historico

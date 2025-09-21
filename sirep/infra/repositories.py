@@ -8,9 +8,8 @@ from sirep.domain.models import (
     Event,
     JobRun,
     DiscardedPlan,
-    CaptureEvent,
     TreatmentPlan,
-    TreatmentLog,
+    PlanLog,
 )
 from sirep.domain.enums import PlanStatus, Step
 
@@ -35,38 +34,6 @@ class EventRepository:
     def __init__(self, db: Session): self.db = db
     def log(self, plan_id: int, step: Step, message: str, level: str="INFO"):
         self.db.add(Event(plan_id=plan_id, step=step, message=message, level=level))
-
-class CaptureEventRepository:
-    def __init__(self, db: Session) -> None:
-        self.db = db
-
-    def add_event(
-        self,
-        *,
-        numero_plano: str,
-        mensagem: str,
-        progresso: int,
-        etapa: str,
-        timestamp,
-    ) -> CaptureEvent:
-        event = CaptureEvent(
-            numero_plano=numero_plano,
-            mensagem=mensagem,
-            progresso=progresso,
-            etapa=etapa,
-            timestamp=timestamp,
-        )
-        self.db.add(event)
-        self.db.flush()
-        return event
-
-    def get_recent(self, limit: int) -> List[CaptureEvent]:
-        stmt = (
-            select(CaptureEvent)
-            .order_by(CaptureEvent.timestamp.desc(), CaptureEvent.id.desc())
-            .limit(limit)
-        )
-        return list(self.db.scalars(stmt))
 
 class JobRunRepository:
     def __init__(self, db: Session) -> None:
@@ -163,25 +130,69 @@ class TreatmentPlanRepository:
         return list(self.db.scalars(stmt))
 
 
-class TreatmentLogRepository:
+class PlanLogRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def add(self, *, treatment_id: int, etapa: int, status: str, mensagem: str) -> TreatmentLog:
-        row = TreatmentLog(
-            treatment_id=treatment_id,
-            etapa=etapa,
-            status=status,
+    def add(
+        self,
+        *,
+        contexto: str,
+        status: str,
+        mensagem: str,
+        numero_plano: Optional[str] = None,
+        etapa_numero: Optional[int] = None,
+        etapa_nome: Optional[str] = None,
+        treatment_id: Optional[int] = None,
+        created_at: Optional[datetime] = None,
+    ) -> PlanLog:
+        contexto_norm = (contexto or "").strip().lower() or "geral"
+        status_norm = (status or "").strip().upper() or "INFO"
+        row = PlanLog(
+            contexto=contexto_norm,
+            status=status_norm,
             mensagem=mensagem,
+            numero_plano=numero_plano,
+            etapa_numero=etapa_numero,
+            etapa_nome=etapa_nome,
+            treatment_id=treatment_id,
         )
+        if created_at is not None:
+            row.created_at = created_at
         self.db.add(row)
         self.db.flush()
         return row
 
-    def recentes(self, limit: int = 20) -> List[TreatmentLog]:
-        stmt = (
-            select(TreatmentLog)
-            .order_by(TreatmentLog.created_at.desc(), TreatmentLog.id.desc())
-            .limit(limit)
+    def recentes(
+        self,
+        *,
+        limit: int = 20,
+        contexto: Optional[str] = None,
+        order: str = "desc",
+    ) -> List[PlanLog]:
+        stmt = select(PlanLog)
+        if contexto:
+            stmt = stmt.where(PlanLog.contexto == contexto)
+        if order == "asc":
+            stmt = stmt.order_by(PlanLog.created_at.asc(), PlanLog.id.asc())
+        else:
+            stmt = stmt.order_by(PlanLog.created_at.desc(), PlanLog.id.desc())
+        if limit:
+            stmt = stmt.limit(limit)
+        return list(self.db.scalars(stmt))
+
+    def intervalo(
+        self,
+        *,
+        inicio: datetime,
+        fim: datetime,
+        contexto: Optional[str] = None,
+    ) -> List[PlanLog]:
+        stmt = select(PlanLog).where(
+            PlanLog.created_at >= inicio,
+            PlanLog.created_at <= fim,
         )
+        if contexto:
+            stmt = stmt.where(PlanLog.contexto == contexto)
+        stmt = stmt.order_by(PlanLog.created_at.asc(), PlanLog.id.asc())
         return list(self.db.scalars(stmt))

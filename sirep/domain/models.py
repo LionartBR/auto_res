@@ -52,16 +52,6 @@ class Event(Base):
     level = Column(String(16), nullable=False, default="INFO")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-class CaptureEvent(Base):
-    __tablename__ = "capture_events"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    numero_plano = Column(String(32), nullable=False)
-    mensagem = Column(String(255), nullable=False)
-    progresso = Column(Integer, nullable=False)
-    etapa = Column(String(64), nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
-
 class JobRun(Base):
     __tablename__ = "job_runs"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -107,14 +97,15 @@ class TreatmentPlan(Base):
         onupdate=func.now(),
         nullable=False,
     )
-
-
-class TreatmentLog(Base):
-    __tablename__ = "treatment_logs"
+class PlanLog(Base):
+    __tablename__ = "plan_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    treatment_id = Column(Integer, ForeignKey("treatment_plans.id"), nullable=False, index=True)
-    etapa = Column(Integer, nullable=False)
-    status = Column(String(16), nullable=False)
+    contexto = Column(String(32), nullable=False, index=True)
+    numero_plano = Column(String(32), nullable=True, index=True)
+    treatment_id = Column(Integer, ForeignKey("treatment_plans.id"), nullable=True, index=True)
+    etapa_numero = Column(Integer, nullable=True)
+    etapa_nome = Column(String(128), nullable=True)
+    status = Column(String(32), nullable=False)
     mensagem = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

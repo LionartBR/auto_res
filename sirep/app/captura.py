@@ -191,6 +191,19 @@ class CapturaService:
     def pausar(self) -> None:
         if self._status.estado != "executando":
             return
+        loop_task = self._loop_task
+        is_running = False
+        if loop_task is not None:
+            try:
+                is_running = not loop_task.done()
+            except Exception:
+                logger.exception("falha ao verificar estado da captura")
+        if not is_running:
+            # Nothing to pause; keep a terminal state so a new execution can start.
+            self._status.estado = "concluido"
+            logger.info("captura já finalizada; ignorando pedido de pausa")
+            return
+
         self._status.estado = "pausado"
         if self._pause_evt is not None:
             self._run_on_loop(self._pause_evt.clear)
@@ -204,6 +217,11 @@ class CapturaService:
 
     def continuar(self) -> None:
         if self._status.estado != "pausado":
+            return
+        if self._pause_evt is None:
+            # The processing loop is no longer active; restore a safe terminal state.
+            self._status.estado = "concluido"
+            logger.info("nenhuma captura ativa para continuar; estado definido como concluído")
             return
         self._status.estado = "executando"
         if self._pause_evt is not None:
@@ -250,14 +268,21 @@ class CapturaService:
             self._status.last_error = traceback.format_exc()
             logger.exception("erro no loop principal da captura")
         finally:
-            if self._status.estado != "pausado":
+            pending_work = any(
+                progresso.progresso < 4 for progresso in self._status.em_progresso.values()
+            )
+            should_mark_concluded = self._status.estado != "pausado" or not pending_work
+            if should_mark_concluded:
+                already_concluded = self._status.estado == "concluido"
                 self._status.estado = "concluido"
-                self._registrar_historico(
-                    numero_plano="",
-                    progresso=4,
-                    etapa="",
-                    mensagem="Processamento concluído.",
-                )
+                last_message = self._status.historico[-1].mensagem if self._status.historico else None
+                if not (already_concluded and last_message == "Processamento concluído."):
+                    self._registrar_historico(
+                        numero_plano="",
+                        progresso=4,
+                        etapa="",
+                        mensagem="Processamento concluído.",
+                    )
             if self._pause_evt is not None:
                 self._pause_evt.set()
             self._loop_task = None

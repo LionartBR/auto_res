@@ -14,7 +14,11 @@ from sirep.infra.db import SessionLocal
 from sirep.infra.repositories import (
     PlanRepository,
     TreatmentPlanRepository,
-    TreatmentLogRepository,
+    PlanLogRepository,
+)
+from sirep.domain.logs import (
+    TRATAMENTO_STAGE_DEFINITIONS,
+    TRATAMENTO_STAGE_LABELS,
 )
 from sirep.shared.fakes import (
     TIPOS_PARCELAMENTO,
@@ -28,15 +32,7 @@ logger = logging.getLogger(__name__)
 
 EstadoTratamento = Literal["ocioso", "aguardando", "processando", "pausado"]
 
-STAGES = [
-    (1, "Etapa 1 – Aproveitamento de Recolhimentos"),
-    (2, "Etapa 2 – Substituição – Confissão x Notificação Fiscal"),
-    (3, "Etapa 3 – Pesquisa de Guias no SFG (PIG)"),
-    (4, "Etapa 4 – Lançamento de Guias no FGE (PIG)"),
-    (5, "Etapa 5 – Situação do Plano"),
-    (6, "Etapa 6 – Rescisão"),
-    (7, "Etapa 7 – Comunicação da Rescisão"),
-]
+STAGES = list(TRATAMENTO_STAGE_DEFINITIONS.items())
 
 class TratamentoService:
     def __init__(self) -> None:
@@ -305,6 +301,25 @@ class TratamentoService:
             event = self._active_event
         if event is not None:
             self._run_on_loop(event.clear)
+        with SessionLocal() as db:
+            plan_repo = TreatmentPlanRepository(db)
+            log_repo = PlanLogRepository(db)
+            treatment = plan_repo.get(self._current_id) if self._current_id else None
+            etapa_atual = treatment.etapa_atual if treatment else None
+            etapa_nome = TRATAMENTO_STAGE_LABELS.get(etapa_atual) if etapa_atual else ""
+            mensagem = (
+                f"Etapa {etapa_atual} pausada" if etapa_atual else "Fila de tratamento pausada."
+            )
+            log_repo.add(
+                contexto="tratamento",
+                treatment_id=treatment.id if treatment else None,
+                numero_plano=treatment.numero_plano if treatment else None,
+                etapa_numero=etapa_atual,
+                etapa_nome=etapa_nome,
+                status="PAUSADO",
+                mensagem=mensagem,
+            )
+            db.commit()
 
     def continuar(self) -> None:
         loop = self._ensure_loop()
@@ -322,6 +337,25 @@ class TratamentoService:
         self._start_worker(loop)
         if event is not None:
             self._run_on_loop(event.set, loop=loop)
+        with SessionLocal() as db:
+            plan_repo = TreatmentPlanRepository(db)
+            log_repo = PlanLogRepository(db)
+            treatment = plan_repo.get(self._current_id) if self._current_id else None
+            etapa_atual = treatment.etapa_atual if treatment else None
+            etapa_nome = TRATAMENTO_STAGE_LABELS.get(etapa_atual) if etapa_atual else ""
+            mensagem = (
+                f"Etapa {etapa_atual} retomada" if etapa_atual else "Fila de tratamento retomada."
+            )
+            log_repo.add(
+                contexto="tratamento",
+                treatment_id=treatment.id if treatment else None,
+                numero_plano=treatment.numero_plano if treatment else None,
+                etapa_numero=etapa_atual,
+                etapa_nome=etapa_nome,
+                status="RETOMADO",
+                mensagem=mensagem,
+            )
+            db.commit()
 
     async def _wait_resume(self) -> None:
         while True:
@@ -402,7 +436,7 @@ class TratamentoService:
     async def _process_plan(self, treatment_id: int) -> None:
         with SessionLocal() as db:
             treatment_repo = TreatmentPlanRepository(db)
-            logs_repo = TreatmentLogRepository(db)
+            logs_repo = PlanLogRepository(db)
             plan_repo = PlanRepository(db)
 
             treatment = treatment_repo.get(treatment_id)
@@ -417,9 +451,13 @@ class TratamentoService:
             for stage_id, stage_nome in STAGES:
                 await self._wait_resume()
                 self._marcar_inicio_etapa(treatment, stage_id)
+                etapa_label = TRATAMENTO_STAGE_LABELS.get(stage_id)
                 logs_repo.add(
+                    contexto="tratamento",
                     treatment_id=treatment.id,
-                    etapa=stage_id,
+                    numero_plano=treatment.numero_plano,
+                    etapa_numero=stage_id,
+                    etapa_nome=etapa_label,
                     status="INICIO",
                     mensagem=f"Iniciada {stage_nome}",
                 )
@@ -450,6 +488,7 @@ class TratamentoService:
                 db.commit()
 
     def _executar_etapa(self, *, db, plan_repo, logs_repo, treatment: TreatmentPlan, stage_id: int, stage_nome: str) -> Optional[str]:
+        etapa_label = TRATAMENTO_STAGE_LABELS.get(stage_id)
         if stage_id == 1:
             self._etapa1(treatment)
             mensagem = "Dados de aproveitamento registrados"
@@ -466,8 +505,11 @@ class TratamentoService:
             resultado = self._etapa5(treatment)
             if resultado == "descartado":
                 logs_repo.add(
+                    contexto="tratamento",
                     treatment_id=treatment.id,
-                    etapa=stage_id,
+                    numero_plano=treatment.numero_plano,
+                    etapa_numero=stage_id,
+                    etapa_nome=etapa_label,
                     status="DESCARTADO",
                     mensagem="Plano descartado após revalidação",
                 )
@@ -487,8 +529,11 @@ class TratamentoService:
             mensagem = "Etapa desconhecida"
 
         logs_repo.add(
+            contexto="tratamento",
             treatment_id=treatment.id,
-            etapa=stage_id,
+            numero_plano=treatment.numero_plano,
+            etapa_numero=stage_id,
+            etapa_nome=etapa_label,
             status="SUCESSO",
             mensagem=mensagem,
         )
@@ -634,9 +679,9 @@ class TratamentoService:
     def status(self) -> dict:
         with SessionLocal() as db:
             treatment_repo = TreatmentPlanRepository(db)
-            log_repo = TreatmentLogRepository(db)
+            log_repo = PlanLogRepository(db)
             planos = treatment_repo.list_all()
-            logs = log_repo.recentes(limit=40)
+            logs = log_repo.recentes(limit=40, contexto="tratamento")
 
         planos_data = []
         for plano in planos:
@@ -660,10 +705,13 @@ class TratamentoService:
             {
                 "id": log.id,
                 "treatment_id": log.treatment_id,
-                "etapa": log.etapa,
+                "numero_plano": log.numero_plano,
+                "etapa": log.etapa_numero,
+                "etapa_nome": log.etapa_nome,
                 "status": log.status,
                 "mensagem": log.mensagem,
                 "created_at": log.created_at.isoformat() if log.created_at else None,
+                "contexto": log.contexto,
             }
             for log in logs
         ]

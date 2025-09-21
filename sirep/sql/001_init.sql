@@ -51,3 +51,17 @@ CREATE INDEX IF NOT EXISTS ix_plans_situacao_atual ON plans(situacao_atual);
 --   KEY ix_plans_status (status),
 --   KEY ix_plans_situacao_atual (situacao_atual)
 -- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS plan_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contexto TEXT NOT NULL,
+  numero_plano TEXT,
+  treatment_id INTEGER,
+  etapa_numero INTEGER,
+  etapa_nome TEXT,
+  status TEXT NOT NULL,
+  mensagem TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_plan_logs_contexto ON plan_logs(contexto);
+CREATE INDEX IF NOT EXISTS ix_plan_logs_created_at ON plan_logs(created_at);

@@ -92,6 +92,7 @@
     .badge-status.sucesso{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
     .badge-status.falha{background:#fef2f2;color:#991b1b;border-color:#fecaca}
     .badge-status.descartado{background:#fffbeb;color:#92400e;border-color:#fde68a}
+    .badge-status.pausado{background:#e0f2fe;color:#0c4a6e;border-color:#7dd3fc}
 
     .logs-footer{padding:8px 12px 12px}
     .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
@@ -294,18 +295,17 @@
                   <table class="logs-table" aria-label="Últimos eventos">
                     <thead>
                       <tr>
-                        <th scope="col">Etapa de execução</th>
-                        <th scope="col">Número do plano</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Usuário responsável</th>
-                        <th scope="col">Duração</th>
                         <th scope="col">Data e hora</th>
+                        <th scope="col">Plano</th>
+                        <th scope="col">Etapa</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Mensagem</th>
                       </tr>
                     </thead>
                     <tbody id="tbodyLogs"></tbody>
                   </table>
                 </div>
-                <div class="logs-footer muted">Exibindo os 10 eventos mais recentes. Novos eventos aparecem automaticamente.</div>
+                <div class="logs-footer muted">Exibindo os eventos mais recentes. Novos eventos aparecem automaticamente.</div>
               </div>
             </div>
           </div>
@@ -471,7 +471,8 @@ let filtroOcorrResizeHandler=null;
 let filtroOcorrKeydownHandler=null;
 let logsOpen=false;
 let latestLogs=[];
-const MAX_LOGS=10;
+const MAX_LOGS=40;
+let logsLoading=false;
 let tratamentoTimer=null;
 let tratamentoDados=null;
 let tratamentoLoading=false;
@@ -479,20 +480,10 @@ let activeTab=null;
 
 function statusClass(s){
   const k=(s||"").toLowerCase();
-  if(k.includes("sucesso")) return "sucesso";
-  if(k.includes("falha")) return "falha";
+  if(k.includes("falha")||k.includes("erro")) return "falha";
   if(k.includes("descart")) return "descartado";
+  if(k.includes("paus")) return "pausado";
   return "sucesso";
-}
-
-function fmtDuration(ms){
-  const n=Number(ms);
-  if(!Number.isFinite(n)||n<0) return "";
-  if(n<1000) return `${n} ms`;
-  const s=n/1000;
-  if(s<60) return `${s.toFixed(1)} s`;
-  const m=Math.floor(s/60), rem=(s%60).toFixed(0);
-  return `${m}m ${rem}s`;
 }
 
 function fmtLogDate(isoStr){
@@ -505,14 +496,18 @@ function fmtLogDate(isoStr){
 }
 
 function normEvent(ev){
+  const etapaNome=ev.etapa_nome||ev.etapa||"";
+  const created=ev.created_at||ev.timestamp||null;
+  const contextoRaw=ev.contexto||"";
   return {
-    id:ev.id||`${ev.numero_plano||""}|${ev.status||""}|${ev.timestamp||""}|${ev.etapa||""}`,
-    etapa:ev.etapa||"",
+    id:ev.id||`${ev.numero_plano||""}|${ev.status||""}|${created||""}|${etapaNome}`,
+    contexto:contextoRaw|| (etapaNome.startsWith("Tratamento")?"tratamento":"gestao"),
+    etapa:etapaNome,
+    etapa_numero:typeof ev.etapa==="number"?ev.etapa:(ev.etapa_numero??null),
     numero_plano:ev.numero_plano||"",
     status:ev.status||"",
-    usuario:ev.usuario||"",
-    duracao_ms:ev.duracao_ms??null,
-    timestamp:ev.timestamp||null
+    mensagem:ev.mensagem||"",
+    created_at:created
   };
 }
 
@@ -585,30 +580,39 @@ function renderLogs(){
   el.tbodyLogs.innerHTML="";
   latestLogs
     .slice()
-    .sort((a,b)=>(new Date(b.timestamp))-(new Date(a.timestamp)))
-    .forEach(ev=>{
+    .sort((a,b)=>{
+      const da=a.created_at?new Date(a.created_at).getTime():0;
+      const db=b.created_at?new Date(b.created_at).getTime():0;
+      return db-da;
+    })
+    .slice(0,MAX_LOGS)
+    .forEach(log=>{
       const tr=document.createElement("tr");
-      const badge=statusClass(ev.status);
+      const badge=statusClass(log.status);
       tr.innerHTML=`
-        <td>${ev.etapa}</td>
-        <td>${ev.numero_plano}</td>
-        <td><span class="badge-status ${badge}">${ev.status}</span></td>
-        <td>${ev.usuario||""}</td>
-        <td>${fmtDuration(ev.duracao_ms)}</td>
-        <td>${fmtLogDate(ev.timestamp)}</td>
+        <td>${fmtLogDate(log.created_at)}</td>
+        <td>${log.numero_plano||"—"}</td>
+        <td>${log.etapa||""}</td>
+        <td><span class="badge-status ${badge}">${formatLogStatus(log.status)}</span></td>
+        <td>${log.mensagem||""}</td>
       `;
       el.tbodyLogs.appendChild(tr);
     });
 }
 
-async function carregarLogsIniciais(){
+async function atualizarLogs(){
+  if(logsLoading) return;
+  logsLoading=true;
   try{
-    const data=await api("/logs?limit=10&order=desc");
+    const data=await api(`/logs?limit=${MAX_LOGS}&order=desc`);
     const items=Array.isArray(data.items)?data.items:[];
-    latestLogs=items.map(normEvent).slice(0,MAX_LOGS);
+    latestLogs=items.map(normEvent);
     if(logsOpen) renderLogs();
+    renderTratamentoLogs();
   }catch(e){
-    console.warn("Falha ao carregar /logs iniciais:",e);
+    console.warn("Falha ao atualizar logs:",e);
+  }finally{
+    logsLoading=false;
   }
 }
 
@@ -815,19 +819,7 @@ async function carregarStatus(){
     abrirModalConclusao();
   }
   ultimoEstado=estadoAtual;
-
-  try{
-    const incoming=Array.isArray(s.historico)?s.historico:[];
-    if(incoming.length){
-      const map=new Map(latestLogs.map(ev=>[ev.id,ev]));
-      incoming.map(normEvent).forEach(ev=>{map.set(ev.id,ev);});
-      latestLogs=Array.from(map.values())
-        .filter(ev=>ev.timestamp)
-        .sort((a,b)=>(new Date(b.timestamp))-(new Date(a.timestamp)))
-        .slice(0,MAX_LOGS);
-      if(logsOpen) renderLogs();
-    }
-  }catch(_e){}
+  await atualizarLogs();
 }
 
 function startPolling(){
@@ -853,7 +845,7 @@ function setLogsOpen(open){
   if(logsOpen){
     el.logsBody.hidden=false;
     el.logsHeader.setAttribute("aria-expanded","true");
-    if(!latestLogs.length) carregarLogsIniciais().then(()=>renderLogs());
+    if(!latestLogs.length) atualizarLogs();
     else renderLogs();
   }else{
     el.logsBody.hidden=true;
@@ -1000,33 +992,42 @@ function renderTratamentoFila(data){
 
 function formatLogStatus(status){
   if(!status) return "";
-  const map={SUCESSO:"Sucesso",INICIO:"Início",DESCARTADO:"Descartado"};
+  const map={
+    SUCESSO:"Sucesso",
+    INICIO:"Início",
+    DESCARTADO:"Descartado",
+    PAUSADO:"Pausado",
+    RETOMADO:"Retomado",
+    CONCLUIDO:"Concluído",
+    FALHA:"Falha",
+  };
   const upper=String(status).toUpperCase();
   if(map[upper]) return map[upper];
   return upper.charAt(0)+upper.slice(1).toLowerCase();
 }
 
-function renderTratamentoLogs(logs,planos){
+function renderTratamentoLogs(){
   if(!el.tbodyTratamentoLogs) return;
   el.tbodyTratamentoLogs.innerHTML="";
-  const map=new Map((Array.isArray(planos)?planos:[]).map(p=>[p.id,p]));
-  (Array.isArray(logs)?logs:[])
+  latestLogs
+    .filter(log=>String(log.contexto||"").toLowerCase()==="tratamento")
     .slice()
     .sort((a,b)=>{
       const da=a.created_at?new Date(a.created_at).getTime():0;
       const db=b.created_at?new Date(b.created_at).getTime():0;
       return db-da;
     })
+    .slice(0,MAX_LOGS)
     .forEach(log=>{
       const tr=document.createElement("tr");
-      const plan=map.get(log.treatment_id);
-      const etapaNome=TREATMENT_STAGE_NAMES[log.etapa]||`Etapa ${log.etapa}`;
       const quando=log.created_at?formatDateTime(log.created_at,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"";
+      const etapaNome=log.etapa||"";
+      const badge=statusClass(log.status);
       tr.innerHTML=`
         <td>${quando}</td>
-        <td>${plan?plan.numero_plano:"—"}</td>
+        <td>${log.numero_plano||"—"}</td>
         <td>${etapaNome}</td>
-        <td>${formatLogStatus(log.status)}</td>
+        <td><span class="badge-status ${badge}">${formatLogStatus(log.status)}</span></td>
         <td>${log.mensagem||""}</td>
       `;
       el.tbodyTratamentoLogs.appendChild(tr);
@@ -1042,7 +1043,7 @@ function atualizarTratamentoUI(data){
   renderTratamentoResumo(planoAtual);
   renderTratamentoEtapas(planoAtual);
   renderTratamentoFila(data);
-  renderTratamentoLogs(data.logs||[],planos);
+  renderTratamentoLogs();
 }
 
 async function carregarTratamentoStatus(){
@@ -1051,6 +1052,7 @@ async function carregarTratamentoStatus(){
   try{
     const data=await api("/tratamentos/status");
     atualizarTratamentoUI(data);
+    await atualizarLogs();
   }catch(e){
     console.error("Falha ao carregar tratamentos",e);
   }finally{
@@ -1345,7 +1347,7 @@ document.addEventListener("DOMContentLoaded", async()=>{
   await carregarStatus();
   await carregarPlanos();
   startPolling();
-  carregarLogsIniciais();
+  atualizarLogs();
 });
 </script>
 </body>

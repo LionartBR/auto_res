@@ -284,6 +284,8 @@ const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationF
   : (fn)=>setTimeout(fn,16);
 const MIN_LOG_HEIGHT=280;
 let logHeightFrame=null;
+let logHeightPending=false;
+let lastComputedLogSizing=null;
 let shouldAutoScrollLog=true;
 function resetLogSizing(){
   if(logElement){
@@ -299,6 +301,38 @@ function resetLogSizing(){
     mainColumn.style.removeProperty("maxHeight");
     mainColumn.style.removeProperty("overflow");
   }
+}
+function applyLogSizing(logHeight,asideHeight){
+  if(!logElement||!asideColumn||!mainColumn)return;
+  const safeLogHeight=Math.max(MIN_LOG_HEIGHT,Number.isFinite(logHeight)?logHeight:MIN_LOG_HEIGHT);
+  const safeAsideHeight=Number.isFinite(asideHeight)&&asideHeight>0?Math.max(safeLogHeight,asideHeight):null;
+  const size=`${safeLogHeight}px`;
+  logElement.style.maxHeight=size;
+  logElement.style.minHeight=size;
+  logElement.style.height=size;
+  if(safeAsideHeight){
+    const asideSize=`${safeAsideHeight}px`;
+    asideColumn.style.height=asideSize;
+    mainColumn.style.minHeight=asideSize;
+  }else{
+    asideColumn.style.removeProperty("height");
+    mainColumn.style.removeProperty("minHeight");
+  }
+  mainColumn.style.removeProperty("maxHeight");
+  mainColumn.style.removeProperty("overflow");
+  lastComputedLogSizing={logHeight:safeLogHeight,asideHeight:safeAsideHeight};
+}
+function applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing){
+  if(lastComputedLogSizing){
+    applyLogSizing(lastComputedLogSizing.logHeight,lastComputedLogSizing.asideHeight);
+    return;
+  }
+  const offsetTop=Number.isFinite(relativeTop)?Math.max(0,relativeTop):0;
+  const spacing=Number.isFinite(bottomSpacing)?Math.max(0,bottomSpacing):0;
+  const rectHeight=mainRect&&Number.isFinite(mainRect.height)&&mainRect.height>0?mainRect.height:0;
+  const fallbackLogHeight=Math.max(MIN_LOG_HEIGHT,rectHeight>0?Math.max(MIN_LOG_HEIGHT,rectHeight-offsetTop-spacing):MIN_LOG_HEIGHT);
+  const fallbackAsideHeight=rectHeight>0?Math.max(rectHeight,offsetTop+fallbackLogHeight+spacing):fallbackLogHeight;
+  applyLogSizing(fallbackLogHeight,fallbackAsideHeight);
 }
 function getMainIntrinsicHeight(mainRect){
   if(!mainColumn){
@@ -332,7 +366,6 @@ function syncLogHeight(){
     resetLogSizing();
     return;
   }
-  // clear previous inline sizing so measurements reflect the current layout
   logElement.style.removeProperty("maxHeight");
   logElement.style.removeProperty("minHeight");
   logElement.style.removeProperty("height");
@@ -346,11 +379,15 @@ function syncLogHeight(){
     return;
   }
   const mainRect=mainColumn.getBoundingClientRect();
-  if(mainRect.height<=0){
-    resetLogSizing();
+  if(!mainRect||!Number.isFinite(mainRect.height)||mainRect.height<=0){
+    applyFallbackLogSizing(mainRect);
     return;
   }
   const mainContentHeight=getMainIntrinsicHeight(mainRect);
+  if(!Number.isFinite(mainContentHeight)||mainContentHeight<=0){
+    applyFallbackLogSizing(mainRect);
+    return;
+  }
   const asideRect=asideColumn.getBoundingClientRect();
   const asideStyle=getComputedStyle(asideColumn);
   const logStyle=getComputedStyle(logElement);
@@ -358,28 +395,27 @@ function syncLogHeight(){
   const relativeTop=logRect.top-asideRect.top;
   const logMarginBottom=parseFloat(logStyle.marginBottom)||0;
   const bottomSpacing=logMarginBottom+(parseFloat(asideStyle.paddingBottom)||0)+(parseFloat(asideStyle.borderBottomWidth)||0);
-  const available=Math.max(0,mainContentHeight-relativeTop-bottomSpacing);
-  if(available<=0){
-    resetLogSizing();
+  const available=mainContentHeight-relativeTop-bottomSpacing;
+  if(!Number.isFinite(available)||available<=0){
+    applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing);
     return;
   }
   const targetHeight=Math.max(MIN_LOG_HEIGHT,available);
   const requiredHeight=relativeTop+targetHeight+bottomSpacing;
   const finalAsideHeight=Math.max(mainContentHeight,requiredHeight);
-  const size=`${targetHeight}px`;
-  logElement.style.maxHeight=size;
-  logElement.style.minHeight=size;
-  logElement.style.height=size;
-  asideColumn.style.height=`${finalAsideHeight}px`;
-  mainColumn.style.minHeight=`${finalAsideHeight}px`;
-  mainColumn.style.removeProperty("maxHeight");
-  mainColumn.style.removeProperty("overflow");
+  applyLogSizing(targetHeight,finalAsideHeight);
 }
 function scheduleLogSync(){
+  logHeightPending=true;
   if(logHeightFrame!==null) return;
   logHeightFrame=requestFrame(()=>{
     logHeightFrame=null;
+    if(!logHeightPending) return;
+    logHeightPending=false;
     syncLogHeight();
+    if(logHeightPending&&logHeightFrame===null){
+      scheduleLogSync();
+    }
   });
 }
 if(typeof ResizeObserver==="function"){

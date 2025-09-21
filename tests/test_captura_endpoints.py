@@ -22,6 +22,7 @@ def client_with_data():
             situacao_atual="P. RESC",
             saldo=123.45,
             status="NOVO",
+            razao_social="EMPRESA DEMO LTDA",
         )
         db.add(plan)
 

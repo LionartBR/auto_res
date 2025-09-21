@@ -21,6 +21,7 @@ class Plan(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     numero_plano = Column(String(32), unique=True, index=True, nullable=False)
     gifug = Column(String(8), nullable=True)
+    razao_social = Column(String(255), nullable=True)
     situacao_atual = Column(String(32), nullable=True)
     situacao_anterior = Column(String(32), nullable=True)
     dias_em_atraso = Column(Integer, nullable=True)

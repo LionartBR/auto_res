@@ -16,6 +16,13 @@ from sirep.infra.repositories import (
     TreatmentPlanRepository,
     TreatmentLogRepository,
 )
+from sirep.shared.fakes import (
+    TIPOS_PARCELAMENTO,
+    gerar_bases,
+    gerar_cnpjs,
+    gerar_periodo,
+    gerar_razao_social,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +37,6 @@ STAGES = [
     (6, "Etapa 6 – Rescisão"),
     (7, "Etapa 7 – Comunicação da Rescisão"),
 ]
-
-UF_CODES = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO", "BH", "BR"]
-RAZAO_PREFIX = ["INDÚSTRIA", "COMÉRCIO", "SERVIÇOS", "TECNOLOGIA", "GRUPO", "CONSÓRCIO", "ALIMENTOS", "ENGENHARIA"]
-RAZAO_SUFFIX = ["DO BRASIL", "GLOBAL", "NACIONAL", "LTDA", "S.A.", "ME", "EIRELI", "& CIA"]
-TIPOS_PARCELAMENTO = ["PARCELAMENTO ORDINÁRIO", "PARCELAMENTO ESPECIAL", "PARCELAMENTO SIMPLIFICADO"]
-
 
 class TratamentoService:
     def __init__(self) -> None:
@@ -123,10 +124,10 @@ class TratamentoService:
 
             for _ in range(quantidade):
                 numero = self._gerar_numero_plano(db)
-                razao = self._gerar_razao_social()
-                periodo = self._gerar_periodo()
-                cnpjs = self._gerar_cnpjs()
-                bases = self._gerar_bases()
+                razao = gerar_razao_social()
+                periodo = gerar_periodo()
+                cnpjs = gerar_cnpjs()
+                bases = gerar_bases()
                 tipo = random.choice(TIPOS_PARCELAMENTO)
 
                 plan = plans_repo.upsert(
@@ -139,6 +140,8 @@ class TratamentoService:
                     dt_situacao_atual=date.today() - timedelta(days=random.randint(10, 90)),
                     saldo=float(random.randint(5_000, 60_000)),
                     status=PlanStatus.PASSIVEL_RESC,
+                    razao_social=razao,
+                    tipo_parcelamento=tipo,
                 )
                 plan.cmb_ajuste = ""
                 plan.justificativa = ""
@@ -160,31 +163,15 @@ class TratamentoService:
                     "E398_BASES": "\n".join(bases),
                 }
 
-                etapas = [
-                    {
-                        "id": sid,
-                        "nome": nome,
-                        "status": "pendente",
-                        "iniciado_em": None,
-                        "finalizado_em": None,
-                        "mensagem": "",
-                    }
-                    for sid, nome in STAGES
-                ]
-
-                treatment = TreatmentPlan(
-                    plan_id=plan.id,
-                    numero_plano=numero,
-                    razao_social=razao,
-                    status="pendente",
-                    etapa_atual=0,
+                treatment = self._criar_tratamento(
+                    treatment_repo=treatment_repo,
+                    plan=plan,
+                    razao=razao,
                     periodo=periodo,
                     cnpjs=cnpjs,
-                    notas=notas,
-                    etapas=etapas,
                     bases=bases,
+                    notas=notas,
                 )
-                treatment_repo.add(treatment)
                 created_ids.append(treatment.id)
 
             db.commit()
@@ -203,42 +190,94 @@ class TratamentoService:
             if not plans_repo.get_by_numero(numero):
                 return numero
 
-    def _gerar_razao_social(self) -> str:
-        prefix = random.choice(RAZAO_PREFIX)
-        middle = random.choice([
-            "ALFA",
-            "BETA",
-            "OMEGA",
-            "DELTA",
-            "PRIME",
-            "UNIAO",
-            "GERAL",
-            "MASTER",
-        ])
-        suffix = random.choice(RAZAO_SUFFIX)
-        return f"{prefix} {middle} {suffix}"
+    def _criar_tratamento(
+        self,
+        *,
+        treatment_repo: TreatmentPlanRepository,
+        plan,
+        razao: str,
+        periodo: str,
+        cnpjs: List[str],
+        bases: List[str],
+        notas: dict,
+    ) -> TreatmentPlan:
+        etapas = [
+            {
+                "id": sid,
+                "nome": nome,
+                "status": "pendente",
+                "iniciado_em": None,
+                "finalizado_em": None,
+                "mensagem": "",
+            }
+            for sid, nome in STAGES
+        ]
 
-    def _gerar_periodo(self) -> str:
-        inicio = date.today() - timedelta(days=random.randint(365, 1500))
-        fim = inicio + timedelta(days=random.randint(90, 720))
-        return f"{inicio.strftime('%m/%Y')} a {fim.strftime('%m/%Y')}"
+        treatment = TreatmentPlan(
+            plan_id=plan.id,
+            numero_plano=plan.numero_plano,
+            razao_social=razao,
+            status="pendente",
+            etapa_atual=0,
+            periodo=periodo,
+            cnpjs=cnpjs,
+            notas=notas,
+            etapas=etapas,
+            bases=bases,
+        )
+        treatment_repo.add(treatment)
+        return treatment
 
-    def _gerar_cnpjs(self) -> List[str]:
-        quantidade = random.randint(1, 3)
-        valores = []
-        for _ in range(quantidade):
-            numero = random.randint(0, 99999999999999)
-            valores.append(self._formatar_cnpj(numero))
-        return valores
+    def migrar_planos(self) -> List[int]:
+        created_ids: List[int] = []
+        with SessionLocal() as db:
+            plans_repo = PlanRepository(db)
+            treatment_repo = TreatmentPlanRepository(db)
 
-    @staticmethod
-    def _formatar_cnpj(valor: int) -> str:
-        s = f"{valor:014d}"
-        return f"{s[:2]}.{s[2:5]}.{s[5:8]}/{s[8:12]}-{s[12:]}"
+            planos = plans_repo.list_by_status(PlanStatus.PASSIVEL_RESC)
+            for plan in planos:
+                if treatment_repo.by_plan_id(plan.id):
+                    continue
 
-    def _gerar_bases(self) -> List[str]:
-        quantidade = random.randint(1, 3)
-        return random.sample(UF_CODES, k=quantidade)
+                razao = plan.razao_social or gerar_razao_social()
+                if not plan.razao_social:
+                    plan.razao_social = razao
+
+                periodo = gerar_periodo()
+                cnpjs = gerar_cnpjs()
+                bases = gerar_bases()
+                tipo = plan.tipo_parcelamento or plan.tipo or random.choice(TIPOS_PARCELAMENTO)
+                plan.tipo_parcelamento = plan.tipo_parcelamento or tipo
+
+                notas = {
+                    "PLANO": plan.numero_plano,
+                    "CNPJ_CEI": ", ".join(cnpjs),
+                    "RAZAO_SOCIAL": razao,
+                    "E544_TIPO": tipo,
+                    "E544_PERIODO": periodo,
+                    "E544_CNPJS": "\n".join(cnpjs),
+                    "E398_BASES": "\n".join(bases),
+                }
+
+                treatment = self._criar_tratamento(
+                    treatment_repo=treatment_repo,
+                    plan=plan,
+                    razao=razao,
+                    periodo=periodo,
+                    cnpjs=cnpjs,
+                    bases=bases,
+                    notas=notas,
+                )
+                created_ids.append(treatment.id)
+
+            db.commit()
+
+        if created_ids:
+            loop = self._ensure_loop()
+            self._start_worker(loop)
+            for treatment_id in created_ids:
+                self._enqueue(treatment_id, loop=loop)
+        return created_ids
 
     # ---- controle de execução ----
     def iniciar(self) -> None:

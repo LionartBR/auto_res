@@ -19,8 +19,20 @@ def client():
         yield test_client
 
 
-def test_seed_tratamentos(client: TestClient):
-    response = client.post("/tratamentos/seed", params={"quantidade": 1})
+def test_migrar_tratamentos(client: TestClient):
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="123456",
+            situacao_atual="P. RESC",
+            saldo=5000.0,
+            status=PlanStatus.PASSIVEL_RESC,
+            razao_social="EMPRESA ALFA LTDA",
+            tipo="ADM",
+        )
+        db.add(plano)
+        db.commit()
+
+    response = client.post("/tratamentos/migrar")
     assert response.status_code == 200
     payload = response.json()
     assert payload["criados"] == 1
@@ -36,10 +48,23 @@ def test_seed_tratamentos(client: TestClient):
     first = body["planos"][0]
     assert "numero_plano" in first
     assert "etapas" in first
+    assert first["razao_social"] == "EMPRESA ALFA LTDA"
 
 
 def test_tratamento_notepad_endpoint(client: TestClient):
-    client.post("/tratamentos/seed", params={"quantidade": 1})
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="654321",
+            situacao_atual="P. RESC",
+            saldo=4200.0,
+            status=PlanStatus.PASSIVEL_RESC,
+            razao_social="EMPRESA BETA LTDA",
+            tipo="INS",
+        )
+        db.add(plano)
+        db.commit()
+
+    client.post("/tratamentos/migrar")
     status = client.get("/tratamentos/status").json()
     plan_id = status["planos"][0]["id"]
 
@@ -58,6 +83,7 @@ def test_rescindidos_txt_endpoint(client: TestClient):
             saldo=100.0,
             status=PlanStatus.RESCINDIDO,
             data_rescisao=hoje,
+            razao_social="EMPRESA TESTE LTDA",
         )
         db.add(plano)
         db.flush()

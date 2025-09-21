@@ -26,6 +26,8 @@ def init_db() -> None:
         info = conn.execute(text("PRAGMA table_info(plans)")).fetchall()
         existing = {row[1] for row in info}
         alter_statements = []
+        if "razao_social" not in existing:
+            alter_statements.append("ALTER TABLE plans ADD COLUMN razao_social VARCHAR(255)")
         if "data_rescisao" not in existing:
             alter_statements.append("ALTER TABLE plans ADD COLUMN data_rescisao DATE")
         if "data_comunicacao" not in existing:

@@ -24,6 +24,7 @@ class PlanOut(BaseModel):
     id: int
     numero_plano: str
     gifug: Optional[str] = None
+    razao_social: Optional[str] = None
     situacao_atual: Optional[str] = None
     situacao_anterior: Optional[str] = None
     dias_em_atraso: Optional[int] = None

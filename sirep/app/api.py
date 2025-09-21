@@ -159,6 +159,12 @@ def tratamentos_seed(quantidade: int = 3):
     return {"criados": len(ids), "ids": ids}
 
 
+@app.post("/tratamentos/migrar")
+def tratamentos_migrar():
+    ids = tratamento.migrar_planos()
+    return {"criados": len(ids), "ids": ids}
+
+
 @app.post("/tratamentos/iniciar")
 def tratamentos_iniciar():
     tratamento.iniciar()

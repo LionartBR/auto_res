@@ -16,6 +16,7 @@ from sirep.infra.repositories import (
     OccurrenceRepository,
     CaptureEventRepository,
 )
+from sirep.shared.fakes import gerar_razao_social
 from sirep.domain.enums import PlanStatus, Step
 
 logger = logging.getLogger(__name__)
@@ -490,6 +491,7 @@ class CapturaService:
             with SessionLocal() as db:
                 plans = PlanRepository(db)
                 events = EventRepository(db)
+                razao_social = gerar_razao_social()
                 p = plans.upsert(
                     numero_plano=numero_plano,
                     gifug="MZ",
@@ -507,6 +509,7 @@ class CapturaService:
                     status=PlanStatus.PASSIVEL_RESC,
                     tipo_parcelamento=tipo,
                     saldo_total=saldo,
+                    razao_social=razao_social,
                 )
                 events.log(p.id, Step.ETAPA_1, "Capturado via simulação")
                 db.commit()

@@ -314,7 +314,7 @@
 
       <section id="tab-tratamento" style="display:none">
         <div class="treatment-controls">
-          <button id="btnTratamentoSeed">Gerar planos mock</button>
+          <button id="btnTratamentoSeed">Migrar planos</button>
           <button id="btnTratamentoIniciar" class="primary">Iniciar fila</button>
           <span class="muted">Estado: <span id="tratamentoEstado">Ocioso</span></span>
         </div>
@@ -339,7 +339,7 @@
               </thead>
               <tbody id="tbodyTratamentoFila"></tbody>
             </table>
-            <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em tratamento. Gere mocks para iniciar.</div>
+            <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em tratamento. Migre planos para iniciar.</div>
           </div>
           <div class="treatment-column">
             <h3>Plano em execução</h3>
@@ -1063,16 +1063,16 @@ function desativarTratamentoTab(){
   stopTratamentoPolling();
 }
 
-async function seedTratamento(){
+async function migrarPlanos(){
   if(!el.btnTratamentoSeed) return;
   el.btnTratamentoSeed.disabled=true;
   try{
-    await api("/tratamentos/seed?quantidade=3",{method:"POST"});
+    await api("/tratamentos/migrar",{method:"POST"});
     await api("/tratamentos/iniciar",{method:"POST"});
     await carregarTratamentoStatus();
   }catch(e){
     console.error(e);
-    alert("Não foi possível gerar os planos de tratamento.");
+    alert("Não foi possível migrar os planos para tratamento.");
   }finally{
     el.btnTratamentoSeed.disabled=false;
   }
@@ -1191,7 +1191,7 @@ document.querySelectorAll(".tab").forEach(tab=>{
 if(el.btnTratamentoSeed){
   el.btnTratamentoSeed.addEventListener("click",event=>{
     event.preventDefault();
-    seedTratamento();
+    migrarPlanos();
   });
 }
 

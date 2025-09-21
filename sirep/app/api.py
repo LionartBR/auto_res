@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -36,7 +36,13 @@ app = FastAPI(title="SIREP 2.0", version=__version__)
 ui_dir = Path(__file__).resolve().parent.parent / "ui"
 app.mount("/app", StaticFiles(directory=str(ui_dir), html=True), name="ui")
 
-DISPLAY_TZ = ZoneInfo("America/Sao_Paulo")
+try:
+    DISPLAY_TZ = ZoneInfo("America/Sao_Paulo")
+except ZoneInfoNotFoundError:
+    logger.warning(
+        "Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback"
+    )
+    DISPLAY_TZ = timezone.utc
 
 CONTENT_TYPES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
 <Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">

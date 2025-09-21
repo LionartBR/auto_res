@@ -283,10 +283,50 @@ const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationF
   ? window.requestAnimationFrame.bind(window)
   : (fn)=>setTimeout(fn,16);
 const MIN_LOG_HEIGHT=280;
+const LOG_SIZING_STORAGE_KEY="sirep::logSizing";
 let logHeightFrame=null;
 let logHeightPending=false;
 let lastComputedLogSizing=null;
 let shouldAutoScrollLog=true;
+
+function isStackedLayout(){
+  return typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
+}
+
+function loadStoredLogSizing(){
+  if(typeof window==="undefined") return null;
+  let storage;
+  try{storage=window.localStorage;}catch(_e){return null;}
+  if(!storage) return null;
+  try{
+    const raw=storage.getItem(LOG_SIZING_STORAGE_KEY);
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object") return null;
+    const storedLogHeight=Math.max(MIN_LOG_HEIGHT,Math.round(Number(parsed.logHeight))||0);
+    if(!Number.isFinite(storedLogHeight)||storedLogHeight<=0) return null;
+    const storedAsideHeight=Math.round(Number(parsed.asideHeight));
+    const asideHeight=Number.isFinite(storedAsideHeight)&&storedAsideHeight>0
+      ? Math.max(storedLogHeight,storedAsideHeight)
+      : null;
+    return {logHeight:storedLogHeight,asideHeight};
+  }catch(_e){
+    return null;
+  }
+}
+
+function persistLogSizing(sizing){
+  if(typeof window==="undefined") return;
+  let storage;
+  try{storage=window.localStorage;}catch(_e){return;}
+  if(!storage) return;
+  try{
+    storage.setItem(LOG_SIZING_STORAGE_KEY,JSON.stringify({
+      logHeight:sizing.logHeight,
+      asideHeight:sizing.asideHeight??null
+    }));
+  }catch(_e){}
+}
 function resetLogSizing(){
   if(logElement){
     logElement.style.removeProperty("maxHeight");
@@ -321,6 +361,8 @@ function applyLogSizing(logHeight,asideHeight){
   mainColumn.style.removeProperty("maxHeight");
   mainColumn.style.removeProperty("overflow");
   lastComputedLogSizing={logHeight:safeLogHeight,asideHeight:safeAsideHeight};
+  persistLogSizing(lastComputedLogSizing);
+
 }
 function applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing){
   if(lastComputedLogSizing){
@@ -373,8 +415,7 @@ function syncLogHeight(){
   mainColumn.style.removeProperty("minHeight");
   mainColumn.style.removeProperty("maxHeight");
   mainColumn.style.removeProperty("overflow");
-  const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
-  if(isStacked){
+  if(isStackedLayout()){
     resetLogSizing();
     return;
   }
@@ -405,6 +446,12 @@ function syncLogHeight(){
   const finalAsideHeight=Math.max(mainContentHeight,requiredHeight);
   applyLogSizing(targetHeight,finalAsideHeight);
 }
+
+const storedLogSizing=loadStoredLogSizing();
+if(storedLogSizing&&logElement&&asideColumn&&mainColumn&&!isStackedLayout()){
+  applyLogSizing(storedLogSizing.logHeight,storedLogSizing.asideHeight);
+}
+
 function scheduleLogSync(){
   logHeightPending=true;
   if(logHeightFrame!==null) return;

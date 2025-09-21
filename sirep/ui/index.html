@@ -316,7 +316,17 @@ function syncLogHeight(){
     return;
   }
   const minHeight=Math.min(MIN_LOG_HEIGHT,available);
-  const targetHeight=Math.max(minHeight,Math.min(available,mainRect.height));
+  let viewportCap=null;
+  if(typeof window!=="undefined"&&typeof window.innerHeight==="number"){
+    const viewportAvailable=window.innerHeight-logRect.top-bottomSpacing;
+    if(Number.isFinite(viewportAvailable)){
+      viewportCap=Math.max(minHeight,Math.max(0,viewportAvailable));
+    }
+  }
+  let targetHeight=Math.max(minHeight,Math.min(available,mainRect.height));
+  if(viewportCap!==null){
+    targetHeight=Math.min(targetHeight,viewportCap);
+  }
   const asideHeight=targetHeight+relativeTop+bottomSpacing;
   const finalAsideHeight=Math.max(mainRect.height,asideHeight);
   const size=`${targetHeight}px`;

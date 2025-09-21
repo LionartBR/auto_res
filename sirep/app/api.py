@@ -1,20 +1,25 @@
 from __future__ import annotations
 
 import logging
+import re
+from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from sirep import __version__
 from sirep.app.captura import captura
+from sirep.app.tratamento import tratamento
 from sirep.domain.models import DiscardedPlan, Plan
 from sirep.domain.schemas import DiscardedPlanOut, PlanOut
 from sirep.infra.db import SessionLocal, init_db
 from sirep.infra.logging import setup_logging
+from sirep.services.notepad import build_notepad_txt
+from sirep.infra.repositories import TreatmentPlanRepository
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +147,62 @@ def captura_ocorrencias(pagina: int = 1, tamanho: int = 10, situacao: str | None
             for plan in raw_items
         ]
         return {"items": items, "total": total}
+    finally:
+        db.close()
+
+# ---- Tratamentos ----
+
+@app.post("/tratamentos/seed")
+def tratamentos_seed(quantidade: int = 3):
+    quantidade = max(1, min(quantidade, 10))
+    ids = tratamento.seed_planos(quantidade)
+    return {"criados": len(ids), "ids": ids}
+
+
+@app.post("/tratamentos/iniciar")
+def tratamentos_iniciar():
+    tratamento.iniciar()
+    return {"estado": tratamento.estado()}
+
+
+@app.get("/tratamentos/status")
+def tratamentos_status():
+    return tratamento.status()
+
+
+@app.get("/tratamentos/{treatment_id}/notepad")
+def tratamentos_notepad(treatment_id: int):
+    db = SessionLocal()
+    try:
+        repo = TreatmentPlanRepository(db)
+        plano = repo.get(treatment_id)
+        if plano is None:
+            raise HTTPException(status_code=404, detail="Tratamento não encontrado")
+        content = build_notepad_txt(plano.notas or {})
+        filename = f"bloco_plano_{plano.numero_plano}.txt"
+        response = PlainTextResponse(content, media_type="text/plain; charset=utf-8")
+        response.headers["Content-Disposition"] = f"attachment; filename=\"{filename}\""
+        return response
+    finally:
+        db.close()
+
+
+@app.get("/tratamentos/rescindidos-txt")
+def tratamentos_rescindidos_txt(data: date):
+    db = SessionLocal()
+    try:
+        repo = TreatmentPlanRepository(db)
+        planos = repo.list_rescindidos_por_data(data)
+        cnpjs: list[str] = []
+        for plano in planos:
+            for cnpj in plano.cnpjs:
+                numero = re.sub(r"\D", "", cnpj)
+                if numero:
+                    cnpjs.append(numero)
+        conteudo = ",".join(cnpjs)
+        response = PlainTextResponse(conteudo, media_type="text/plain; charset=utf-8")
+        response.headers["Content-Disposition"] = 'attachment; filename="Rescindidos_CNPJ.txt"'
+        return response
     finally:
         db.close()
 

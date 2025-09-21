@@ -1,6 +1,17 @@
 from __future__ import annotations
 from datetime import date
-from sqlalchemy import Column, Integer, String, Date, DateTime, Float, func, ForeignKey, JSON
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Date,
+    DateTime,
+    Float,
+    func,
+    ForeignKey,
+    JSON,
+)
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -24,6 +35,10 @@ class Plan(Base):
     tipo_parcelamento = Column(String(8), nullable=True)
     saldo_total = Column(Float, nullable=True)
     status = Column(String(16), nullable=True)  # requerido pelo upsert
+    data_rescisao = Column(Date, nullable=True)
+    data_comunicacao = Column(Date, nullable=True)
+    metodo_comunicacao = Column(String(16), nullable=True)
+    referencia_comunicacao = Column(String(128), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -66,4 +81,39 @@ class DiscardedPlan(Base):
     tipo = Column(String(8), nullable=True)
     saldo = Column(Float, nullable=True)
     dt_situacao_atual = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class TreatmentPlan(Base):
+    __tablename__ = "treatment_plans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plan_id = Column(Integer, ForeignKey("plans.id"), nullable=False)
+    numero_plano = Column(String(32), nullable=False, index=True)
+    razao_social = Column(String(255), nullable=False)
+    status = Column(String(16), nullable=False, default="pendente")
+    etapa_atual = Column(Integer, nullable=False, default=0)
+    periodo = Column(String(64), nullable=True)
+    cnpjs = Column(MutableList.as_mutable(JSON), nullable=False, default=list)
+    notas = Column(MutableDict.as_mutable(JSON), nullable=False, default=dict)
+    etapas = Column(MutableList.as_mutable(JSON), nullable=False, default=list)
+    bases = Column(MutableList.as_mutable(JSON), nullable=False, default=list)
+    rescisao_data = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class TreatmentLog(Base):
+    __tablename__ = "treatment_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    treatment_id = Column(Integer, ForeignKey("treatment_plans.id"), nullable=False, index=True)
+    etapa = Column(Integer, nullable=False)
+    status = Column(String(16), nullable=False)
+    mensagem = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

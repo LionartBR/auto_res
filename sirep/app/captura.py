@@ -127,6 +127,24 @@ class CapturaService:
         if wait:
             fut.result()
 
+    async def _wait_resume(self) -> None:
+        while True:
+            evt = self._pause_evt
+            if evt is None or evt.is_set():
+                return
+            await evt.wait()
+
+    async def _sleep_with_pause(self, duration: float) -> None:
+        remaining = duration
+        while remaining > 0:
+            await self._wait_resume()
+            interval = min(0.1, remaining)
+            await asyncio.sleep(interval)
+            evt = self._pause_evt
+            if evt is not None and not evt.is_set():
+                continue
+            remaining -= interval
+
     def iniciar(self) -> None:
         self._ensure_history_loaded()
         if self._status.estado in ("executando", "pausado"):
@@ -209,8 +227,11 @@ class CapturaService:
         try:
             alvo, gerados = self._total_alvos, 0
             while not stop_evt.is_set() and gerados < alvo:
-                await pause_evt.wait()
+                await self._wait_resume()
                 for _ in range(min(self._velocidade, alvo - gerados)):
+                    await self._wait_resume()
+                    if stop_evt.is_set():
+                        break
                     numero = self._gerar_numero()
                     try:
                         asyncio.get_running_loop().create_task(
@@ -220,7 +241,7 @@ class CapturaService:
                         self._status.last_error = traceback.format_exc()
                         logger.exception("erro ao criar task do plano %s", numero)
                     gerados += 1
-                await asyncio.sleep(1.0)
+                await self._sleep_with_pause(1.0)
 
             while self._status.estado != "pausado" and any(p.progresso < 4 for p in self._status.em_progresso.values()):
                 await asyncio.sleep(0.2)
@@ -237,6 +258,8 @@ class CapturaService:
                     etapa="",
                     mensagem="Processamento concluído.",
                 )
+            if self._pause_evt is not None:
+                self._pause_evt.set()
             self._loop_task = None
             self._pause_evt = None
             self._stop_evt = None
@@ -320,69 +343,102 @@ class CapturaService:
     async def _processar_plano(self, numero_plano: str) -> None:
         st = self._status
         try:
+            await self._wait_resume()
             st.em_progresso[numero_plano] = PlanoProgresso(numero_plano, 0)
             cnpj = self._gerar_cnpj()
             saldo = round(random.uniform(1_000, 150_000), 2)
             hoje: date = datetime.now(timezone.utc).date()
             tipo = random.choice(TIPOS)
 
-            await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            await self._sleep_with_pause(random.uniform(self._step_min, self._step_max))
+            await self._wait_resume()
             st.em_progresso[numero_plano].progresso = 1
 
-            await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            await self._sleep_with_pause(random.uniform(self._step_min, self._step_max))
+            await self._wait_resume()
             st.em_progresso[numero_plano].progresso = 2
             if random.random() < 0.05:
+                await self._wait_resume()
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
-                        numero_plano=numero_plano, situacao="SIT ESPECIAL", cnpj=cnpj,
-                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
-                    ); db.commit()
+                        numero_plano=numero_plano,
+                        situacao="SIT ESPECIAL",
+                        cnpj=cnpj,
+                        tipo=tipo,
+                        saldo=saldo,
+                        dt_situacao_atual=hoje,
+                    )
+                    db.commit()
+                await self._wait_resume()
                 self._registrar_historico(
                     numero_plano=numero_plano,
                     progresso=2,
                     etapa=self._obter_etapa(numero_plano, 2),
                     mensagem="Descartado: SIT ESPECIAL",
                 )
-                st.falhas += 1; st.processados += 1
+                await self._wait_resume()
+                st.falhas += 1
+                st.processados += 1
                 return
 
-            await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            await self._sleep_with_pause(random.uniform(self._step_min, self._step_max))
+            await self._wait_resume()
             st.em_progresso[numero_plano].progresso = 3
             if random.random() < 0.04:
-                sit = random.choice(("LIQUIDADO","RESCINDIDO"))
+                sit = random.choice(("LIQUIDADO", "RESCINDIDO"))
+                await self._wait_resume()
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
-                        numero_plano=numero_plano, situacao=sit, cnpj=cnpj,
-                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
-                    ); db.commit()
+                        numero_plano=numero_plano,
+                        situacao=sit,
+                        cnpj=cnpj,
+                        tipo=tipo,
+                        saldo=saldo,
+                        dt_situacao_atual=hoje,
+                    )
+                    db.commit()
+                await self._wait_resume()
                 self._registrar_historico(
                     numero_plano=numero_plano,
                     progresso=3,
                     etapa=self._obter_etapa(numero_plano, 3),
                     mensagem=f"Descartado: {sit}",
                 )
-                st.falhas += 1; st.processados += 1
+                await self._wait_resume()
+                st.falhas += 1
+                st.processados += 1
                 return
 
-            await asyncio.sleep(random.uniform(self._step_min, self._step_max))
+            await self._sleep_with_pause(random.uniform(self._step_min, self._step_max))
+            await self._wait_resume()
             if random.random() < 0.04:
+                await self._wait_resume()
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
-                        numero_plano=numero_plano, situacao="GRDE Emitida", cnpj=cnpj,
-                        tipo=tipo, saldo=saldo, dt_situacao_atual=hoje
-                    ); db.commit()
+                        numero_plano=numero_plano,
+                        situacao="GRDE Emitida",
+                        cnpj=cnpj,
+                        tipo=tipo,
+                        saldo=saldo,
+                        dt_situacao_atual=hoje,
+                    )
+                    db.commit()
+                await self._wait_resume()
                 self._registrar_historico(
                     numero_plano=numero_plano,
                     progresso=4,
                     etapa=self._obter_etapa(numero_plano, 4),
                     mensagem="Descartado: GRDE Emitida",
                 )
-                st.falhas += 1; st.processados += 1
+                await self._wait_resume()
+                st.falhas += 1
+                st.processados += 1
                 return
             st.em_progresso[numero_plano].progresso = 4
 
             if random.random() < 0.03:
                 situacao_final = random.choice(SITS_ALT)
+                await self._wait_resume()
                 with SessionLocal() as db:
                     OccurrenceRepository(db).add(
                         numero_plano=numero_plano,
@@ -391,18 +447,24 @@ class CapturaService:
                         tipo=tipo,
                         saldo=saldo,
                         dt_situacao_atual=hoje,
-                    ); db.commit()
+                    )
+                    db.commit()
+                await self._wait_resume()
                 self._registrar_historico(
                     numero_plano=numero_plano,
                     progresso=4,
                     etapa=self._obter_etapa(numero_plano, 4),
                     mensagem=f"Descartado: {situacao_final}",
                 )
-                st.falhas += 1; st.processados += 1
+                await self._wait_resume()
+                st.falhas += 1
+                st.processados += 1
                 return
 
+            await self._wait_resume()
             with SessionLocal() as db:
-                plans = PlanRepository(db); events = EventRepository(db)
+                plans = PlanRepository(db)
+                events = EventRepository(db)
                 p = plans.upsert(
                     numero_plano=numero_plano,
                     gifug="MZ",
@@ -412,15 +474,22 @@ class CapturaService:
                     tipo=tipo,
                     dt_situacao_atual=hoje,
                     saldo=saldo,
-                    cmb_ajuste="", justificativa="", matricula="",
-                    dt_parcela_atraso=None, representacao="",
+                    cmb_ajuste="",
+                    justificativa="",
+                    matricula="",
+                    dt_parcela_atraso=None,
+                    representacao="",
                     status=PlanStatus.PASSIVEL_RESC,
-                    tipo_parcelamento=tipo, saldo_total=saldo,
+                    tipo_parcelamento=tipo,
+                    saldo_total=saldo,
                 )
                 events.log(p.id, Step.ETAPA_1, "Capturado via simulação")
                 db.commit()
 
-            st.novos += 1; st.processados += 1
+            await self._wait_resume()
+            st.novos += 1
+            st.processados += 1
+            await self._wait_resume()
             self._registrar_historico(
                 numero_plano=numero_plano,
                 progresso=4,
@@ -429,12 +498,14 @@ class CapturaService:
             )
 
         except Exception:
+            await self._wait_resume()
             st.falhas += 1
             st.last_error = traceback.format_exc()
             logger.exception("erro ao processar plano %s", numero_plano)
             info_atual = st.em_progresso.get(numero_plano)
             progresso_atual = info_atual.progresso if info_atual else 0
             etapa = self._obter_etapa(numero_plano, progresso_atual or 1)
+            await self._wait_resume()
             self._registrar_historico(
                 numero_plano=numero_plano,
                 progresso=progresso_atual,
@@ -442,6 +513,7 @@ class CapturaService:
                 mensagem="Falha inesperada",
             )
         finally:
+            await self._wait_resume()
             st.em_progresso.pop(numero_plano, None)
             st.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
 

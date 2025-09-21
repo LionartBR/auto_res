@@ -157,11 +157,8 @@
     .stage.cancelado .stage-status-label{color:#b91c1c}
     .stage.pendente{border-left-color:#d1d5db}
     .treatment-downloads{display:flex;gap:10px;align-items:center;margin-top:6px}
-    .treatment-logs{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
-    .treatment-logs table{width:100%;border-collapse:collapse}
-    .treatment-logs th,.treatment-logs td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;text-align:left}
-    .treatment-logs th{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
-    .treatment-logs tbody tr:last-child td{border-bottom:0}
+    .treatment-logs{margin-top:20px}
+    .treatment-logs .logs-actions{flex-wrap:wrap;justify-content:flex-end}
     .btn-link{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
     .btn-link:hover{background:rgba(16,140,188,.08)}
   </style>
@@ -352,20 +349,51 @@
             </div>
           </div>
         </div>
-        <div class="treatment-logs">
-          <h3>Logs das etapas</h3>
-          <table aria-label="Eventos de tratamento">
-            <thead>
-              <tr>
-                <th scope="col">Data e hora</th>
-                <th scope="col">Plano</th>
-                <th scope="col">Etapa</th>
-                <th scope="col">Status</th>
-                <th scope="col">Mensagem</th>
-              </tr>
-            </thead>
-            <tbody id="tbodyTratamentoLogs"></tbody>
-          </table>
+        <div id="treatmentLogsCard" class="treatment-logs card logs-card" aria-live="polite">
+          <div
+            class="logs-header"
+            id="treatmentLogsHeader"
+            role="button"
+            tabindex="0"
+            aria-expanded="true"
+            aria-controls="treatmentLogsBody"
+            title="Mostrar ou ocultar a janela de eventos do tratamento"
+          >
+            <div class="logs-title">
+              <span class="caret" aria-hidden="true">▶</span>
+              <strong>Janela de Eventos (log)</strong>
+            </div>
+
+            <div class="logs-actions">
+              <label class="muted" for="treatmentLogsFrom">De:</label>
+              <input type="date" id="treatmentLogsFrom" aria-label="Data inicial dos eventos de tratamento" />
+              <label class="muted" for="treatmentLogsTo">Até:</label>
+              <input type="date" id="treatmentLogsTo" aria-label="Data final dos eventos de tratamento" />
+              <button id="btnTreatmentExportLogs" class="btn-export" title="Exportar logs de tratamento em Excel (.xlsx)">
+                Exportar (.xlsx)
+              </button>
+            </div>
+          </div>
+
+          <div class="logs-body" id="treatmentLogsBody">
+            <div class="logs-table-wrap" id="treatmentLogsWrap">
+              <table class="logs-table" aria-label="Eventos de tratamento">
+                <thead>
+                  <tr>
+                    <th scope="col">Data e hora</th>
+                    <th scope="col">Plano</th>
+                    <th scope="col">Etapa</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Mensagem</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyTratamentoLogs"></tbody>
+              </table>
+            </div>
+            <div class="logs-footer muted">
+              Exibindo os eventos de tratamento mais recentes. Role para consultar os anteriores.
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -427,8 +455,71 @@ function formatDateTime(value,options){
   if(!value)return"";
   const date=new Date(value);
   if(Number.isNaN(date.getTime()))return"";
-  const opts={timeZone:TIMEZONE,...(options||{})};
-  return date.toLocaleString("pt-BR",opts);
+  const hasCustomOptions=options&&Object.keys(options).length>0;
+  const baseOptions={
+    timeZone:TIMEZONE,
+    ...(hasCustomOptions?options:{
+      day:"2-digit",
+      month:"2-digit",
+      year:"numeric",
+      hour:"2-digit",
+      minute:"2-digit",
+      second:"2-digit",
+    }),
+  };
+  if(!("hour12"in baseOptions)){
+    baseOptions.hour12=false;
+  }
+  try{
+    const formatter=new Intl.DateTimeFormat("pt-BR",baseOptions);
+    if(typeof formatter.formatToParts==="function"){
+      const partsMap={};
+      formatter.formatToParts(date).forEach(part=>{
+        if(part.type!=="literal"){
+          partsMap[part.type]=part.value;
+        }
+      });
+      const ensurePart=(type)=>{
+        if(partsMap[type]) return partsMap[type];
+        const style=type==="year"?"numeric":"2-digit";
+        try{
+          return new Intl.DateTimeFormat("pt-BR",{timeZone:baseOptions.timeZone,hour12:false,[type]:style}).format(date);
+        }catch(_err){
+          const pad=(n)=>String(n).padStart(2,"0");
+          if(type==="day") return pad(date.getUTCDate());
+          if(type==="month") return pad(date.getUTCMonth()+1);
+          if(type==="year") return String(date.getUTCFullYear());
+          if(type==="hour") return pad(date.getUTCHours());
+          if(type==="minute") return pad(date.getUTCMinutes());
+          if(type==="second") return pad(date.getUTCSeconds());
+          return "";
+        }
+      };
+      let result="";
+      const includeDate=("day"in baseOptions)||("month"in baseOptions)||("year"in baseOptions);
+      if(includeDate){
+        const day=ensurePart("day");
+        const month=ensurePart("month");
+        const year=ensurePart("year");
+        result=`${day}/${month}/${year}`;
+      }
+      const includeHour="hour"in baseOptions;
+      const includeMinute="minute"in baseOptions;
+      const includeSecond="second"in baseOptions;
+      if(includeHour||includeMinute||includeSecond){
+        const timeParts=[];
+        if(includeHour) timeParts.push(ensurePart("hour"));
+        if(includeMinute) timeParts.push(ensurePart("minute"));
+        if(includeSecond) timeParts.push(ensurePart("second"));
+        const timeString=timeParts.join(":");
+        result=result?`${result} ${timeString}`:timeString;
+      }
+      return result.trim();
+    }
+    return formatter.format(date);
+  }catch(_err){
+    return date.toLocaleString("pt-BR",baseOptions);
+  }
 }
 const TREATMENT_STAGE_NAMES={
   1:"Etapa 1 – Aproveitamento de Recolhimentos",
@@ -453,6 +544,10 @@ const el={
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk"), btnModalClose:$("#btnModalClose"),
   logsCard:$("#cardLogs"), logsHeader:$("#logsHeader"), logsBody:$("#logsBody"),
   tbodyLogs:$("#tbodyLogs"), logsFrom:$("#logsFrom"), logsTo:$("#logsTo"), btnExportLogs:$("#btnExportLogs"),
+  treatmentLogsCard:$("#treatmentLogsCard"), treatmentLogsHeader:$("#treatmentLogsHeader"),
+  treatmentLogsBody:$("#treatmentLogsBody"), treatmentLogsWrap:$("#treatmentLogsWrap"),
+  treatmentLogsFrom:$("#treatmentLogsFrom"), treatmentLogsTo:$("#treatmentLogsTo"),
+  btnTreatmentExportLogs:$("#btnTreatmentExportLogs"),
   tratamentoEstado:$("#tratamentoEstado"), btnTratamentoSeed:$("#btnTratamentoSeed"),
   btnTratamentoIniciar:$("#btnTratamentoIniciar"), btnTratamentoPausar:$("#btnTratamentoPausar"),
   btnTratamentoContinuar:$("#btnTratamentoContinuar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
@@ -470,6 +565,7 @@ let filtroOcorrScrollHandler=null;
 let filtroOcorrResizeHandler=null;
 let filtroOcorrKeydownHandler=null;
 let logsOpen=false;
+let treatmentLogsOpen=true;
 let latestLogs=[];
 const MAX_LOGS=40;
 let logsLoading=false;
@@ -860,6 +956,35 @@ if(el.logsHeader){
 }
 setLogsOpen(false);
 
+function setTreatmentLogsOpen(open){
+  treatmentLogsOpen=!!open;
+  if(!el.treatmentLogsBody||!el.treatmentLogsHeader) return;
+  if(treatmentLogsOpen){
+    el.treatmentLogsBody.hidden=false;
+    el.treatmentLogsHeader.setAttribute("aria-expanded","true");
+    renderTratamentoLogs();
+  }else{
+    el.treatmentLogsBody.hidden=true;
+    el.treatmentLogsHeader.setAttribute("aria-expanded","false");
+  }
+  const headerTitle=treatmentLogsOpen?
+    "Ocultar janela de eventos do tratamento":
+    "Mostrar janela de eventos do tratamento";
+  el.treatmentLogsHeader.setAttribute("title",headerTitle);
+  el.treatmentLogsHeader.setAttribute("aria-label",headerTitle);
+}
+
+if(el.treatmentLogsHeader){
+  const toggle=(event)=>{event.preventDefault();setTreatmentLogsOpen(!treatmentLogsOpen);};
+  el.treatmentLogsHeader.addEventListener("click",toggle);
+  el.treatmentLogsHeader.addEventListener("keydown",event=>{
+    if(event.key==="Enter"||event.key===" "){
+      toggle(event);
+    }
+  });
+}
+setTreatmentLogsOpen(true);
+
 function downloadBlob(blob,filename){
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
@@ -1008,6 +1133,10 @@ function formatLogStatus(status){
 
 function renderTratamentoLogs(){
   if(!el.tbodyTratamentoLogs) return;
+  if(!treatmentLogsOpen){
+    el.tbodyTratamentoLogs.innerHTML="";
+    return;
+  }
   el.tbodyTratamentoLogs.innerHTML="";
   latestLogs
     .filter(log=>String(log.contexto||"").toLowerCase()==="tratamento")
@@ -1032,6 +1161,9 @@ function renderTratamentoLogs(){
       `;
       el.tbodyTratamentoLogs.appendChild(tr);
     });
+  if(el.treatmentLogsWrap){
+    el.treatmentLogsWrap.scrollTop=0;
+  }
 }
 
 function atualizarTratamentoUI(data){
@@ -1223,6 +1355,36 @@ async function exportLogsXlsx(){
 
 if(el.btnExportLogs){
   el.btnExportLogs.addEventListener("click",(e)=>{e.preventDefault();exportLogsXlsx();});
+}
+
+async function exportTreatmentLogsXlsx(){
+  if(!el.treatmentLogsFrom||!el.treatmentLogsTo||!el.btnTreatmentExportLogs) return;
+  const fromISO=toISODate(el.treatmentLogsFrom.value);
+  const toISO=toISODate(el.treatmentLogsTo.value);
+  if(!fromISO||!toISO){
+    alert("Selecione as datas inicial e final.");
+    return;
+  }
+  const fromBR=toBRFileDate(fromISO);
+  const toBR=toBRFileDate(toISO);
+  const filename=`logs_tratamento_intervalo_${fromBR}-${toBR}.xlsx`;
+
+  el.btnTreatmentExportLogs.disabled=true;
+  try{
+    const res=await fetch(`/logs/export?from=${fromISO}&to=${toISO}`,{method:"GET"});
+    if(!res.ok) throw new Error(`Export falhou: ${res.status}`);
+    const blob=await res.blob();
+    downloadBlob(blob,filename);
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível exportar os logs de tratamento. Tente novamente.");
+  }finally{
+    el.btnTreatmentExportLogs.disabled=false;
+  }
+}
+
+if(el.btnTreatmentExportLogs){
+  el.btnTreatmentExportLogs.addEventListener("click",event=>{event.preventDefault();exportTreatmentLogsXlsx();});
 }
 
 document.querySelectorAll(".tab").forEach(tab=>{

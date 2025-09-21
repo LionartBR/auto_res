@@ -362,6 +362,7 @@ function applyLogSizing(logHeight,asideHeight){
   mainColumn.style.removeProperty("overflow");
   lastComputedLogSizing={logHeight:safeLogHeight,asideHeight:safeAsideHeight};
   persistLogSizing(lastComputedLogSizing);
+
 }
 function applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing){
   if(lastComputedLogSizing){

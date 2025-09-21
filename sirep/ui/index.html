@@ -283,8 +283,50 @@ const requestFrame=(typeof window!=="undefined"&&typeof window.requestAnimationF
   ? window.requestAnimationFrame.bind(window)
   : (fn)=>setTimeout(fn,16);
 const MIN_LOG_HEIGHT=280;
+const LOG_SIZING_STORAGE_KEY="sirep::logSizing";
 let logHeightFrame=null;
+let logHeightPending=false;
+let lastComputedLogSizing=null;
 let shouldAutoScrollLog=true;
+
+function isStackedLayout(){
+  return typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
+}
+
+function loadStoredLogSizing(){
+  if(typeof window==="undefined") return null;
+  let storage;
+  try{storage=window.localStorage;}catch(_e){return null;}
+  if(!storage) return null;
+  try{
+    const raw=storage.getItem(LOG_SIZING_STORAGE_KEY);
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    if(!parsed||typeof parsed!=="object") return null;
+    const storedLogHeight=Math.max(MIN_LOG_HEIGHT,Math.round(Number(parsed.logHeight))||0);
+    if(!Number.isFinite(storedLogHeight)||storedLogHeight<=0) return null;
+    const storedAsideHeight=Math.round(Number(parsed.asideHeight));
+    const asideHeight=Number.isFinite(storedAsideHeight)&&storedAsideHeight>0
+      ? Math.max(storedLogHeight,storedAsideHeight)
+      : null;
+    return {logHeight:storedLogHeight,asideHeight};
+  }catch(_e){
+    return null;
+  }
+}
+
+function persistLogSizing(sizing){
+  if(typeof window==="undefined") return;
+  let storage;
+  try{storage=window.localStorage;}catch(_e){return;}
+  if(!storage) return;
+  try{
+    storage.setItem(LOG_SIZING_STORAGE_KEY,JSON.stringify({
+      logHeight:sizing.logHeight,
+      asideHeight:sizing.asideHeight??null
+    }));
+  }catch(_e){}
+}
 function resetLogSizing(){
   if(logElement){
     logElement.style.removeProperty("maxHeight");
@@ -299,6 +341,39 @@ function resetLogSizing(){
     mainColumn.style.removeProperty("maxHeight");
     mainColumn.style.removeProperty("overflow");
   }
+}
+function applyLogSizing(logHeight,asideHeight){
+  if(!logElement||!asideColumn||!mainColumn)return;
+  const safeLogHeight=Math.max(MIN_LOG_HEIGHT,Number.isFinite(logHeight)?logHeight:MIN_LOG_HEIGHT);
+  const safeAsideHeight=Number.isFinite(asideHeight)&&asideHeight>0?Math.max(safeLogHeight,asideHeight):null;
+  const size=`${safeLogHeight}px`;
+  logElement.style.maxHeight=size;
+  logElement.style.minHeight=size;
+  logElement.style.height=size;
+  if(safeAsideHeight){
+    const asideSize=`${safeAsideHeight}px`;
+    asideColumn.style.height=asideSize;
+    mainColumn.style.minHeight=asideSize;
+  }else{
+    asideColumn.style.removeProperty("height");
+    mainColumn.style.removeProperty("minHeight");
+  }
+  mainColumn.style.removeProperty("maxHeight");
+  mainColumn.style.removeProperty("overflow");
+  lastComputedLogSizing={logHeight:safeLogHeight,asideHeight:safeAsideHeight};
+  persistLogSizing(lastComputedLogSizing);
+}
+function applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing){
+  if(lastComputedLogSizing){
+    applyLogSizing(lastComputedLogSizing.logHeight,lastComputedLogSizing.asideHeight);
+    return;
+  }
+  const offsetTop=Number.isFinite(relativeTop)?Math.max(0,relativeTop):0;
+  const spacing=Number.isFinite(bottomSpacing)?Math.max(0,bottomSpacing):0;
+  const rectHeight=mainRect&&Number.isFinite(mainRect.height)&&mainRect.height>0?mainRect.height:0;
+  const fallbackLogHeight=Math.max(MIN_LOG_HEIGHT,rectHeight>0?Math.max(MIN_LOG_HEIGHT,rectHeight-offsetTop-spacing):MIN_LOG_HEIGHT);
+  const fallbackAsideHeight=rectHeight>0?Math.max(rectHeight,offsetTop+fallbackLogHeight+spacing):fallbackLogHeight;
+  applyLogSizing(fallbackLogHeight,fallbackAsideHeight);
 }
 function getMainIntrinsicHeight(mainRect){
   if(!mainColumn){
@@ -332,7 +407,6 @@ function syncLogHeight(){
     resetLogSizing();
     return;
   }
-  // clear previous inline sizing so measurements reflect the current layout
   logElement.style.removeProperty("maxHeight");
   logElement.style.removeProperty("minHeight");
   logElement.style.removeProperty("height");
@@ -340,17 +414,20 @@ function syncLogHeight(){
   mainColumn.style.removeProperty("minHeight");
   mainColumn.style.removeProperty("maxHeight");
   mainColumn.style.removeProperty("overflow");
-  const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
-  if(isStacked){
+  if(isStackedLayout()){
     resetLogSizing();
     return;
   }
   const mainRect=mainColumn.getBoundingClientRect();
-  if(mainRect.height<=0){
-    resetLogSizing();
+  if(!mainRect||!Number.isFinite(mainRect.height)||mainRect.height<=0){
+    applyFallbackLogSizing(mainRect);
     return;
   }
   const mainContentHeight=getMainIntrinsicHeight(mainRect);
+  if(!Number.isFinite(mainContentHeight)||mainContentHeight<=0){
+    applyFallbackLogSizing(mainRect);
+    return;
+  }
   const asideRect=asideColumn.getBoundingClientRect();
   const asideStyle=getComputedStyle(asideColumn);
   const logStyle=getComputedStyle(logElement);
@@ -358,28 +435,33 @@ function syncLogHeight(){
   const relativeTop=logRect.top-asideRect.top;
   const logMarginBottom=parseFloat(logStyle.marginBottom)||0;
   const bottomSpacing=logMarginBottom+(parseFloat(asideStyle.paddingBottom)||0)+(parseFloat(asideStyle.borderBottomWidth)||0);
-  const available=Math.max(0,mainContentHeight-relativeTop-bottomSpacing);
-  if(available<=0){
-    resetLogSizing();
+  const available=mainContentHeight-relativeTop-bottomSpacing;
+  if(!Number.isFinite(available)||available<=0){
+    applyFallbackLogSizing(mainRect,relativeTop,bottomSpacing);
     return;
   }
   const targetHeight=Math.max(MIN_LOG_HEIGHT,available);
   const requiredHeight=relativeTop+targetHeight+bottomSpacing;
   const finalAsideHeight=Math.max(mainContentHeight,requiredHeight);
-  const size=`${targetHeight}px`;
-  logElement.style.maxHeight=size;
-  logElement.style.minHeight=size;
-  logElement.style.height=size;
-  asideColumn.style.height=`${finalAsideHeight}px`;
-  mainColumn.style.minHeight=`${finalAsideHeight}px`;
-  mainColumn.style.removeProperty("maxHeight");
-  mainColumn.style.removeProperty("overflow");
+  applyLogSizing(targetHeight,finalAsideHeight);
 }
+
+const storedLogSizing=loadStoredLogSizing();
+if(storedLogSizing&&logElement&&asideColumn&&mainColumn&&!isStackedLayout()){
+  applyLogSizing(storedLogSizing.logHeight,storedLogSizing.asideHeight);
+}
+
 function scheduleLogSync(){
+  logHeightPending=true;
   if(logHeightFrame!==null) return;
   logHeightFrame=requestFrame(()=>{
     logHeightFrame=null;
+    if(!logHeightPending) return;
+    logHeightPending=false;
     syncLogHeight();
+    if(logHeightPending&&logHeightFrame===null){
+      scheduleLogSync();
+    }
   });
 }
 if(typeof ResizeObserver==="function"){

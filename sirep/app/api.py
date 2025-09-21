@@ -171,6 +171,18 @@ def tratamentos_iniciar():
     return {"estado": tratamento.estado()}
 
 
+@app.post("/tratamentos/pausar")
+def tratamentos_pausar():
+    tratamento.pausar()
+    return {"estado": tratamento.estado()}
+
+
+@app.post("/tratamentos/continuar")
+def tratamentos_continuar():
+    tratamento.continuar()
+    return {"estado": tratamento.estado()}
+
+
 @app.get("/tratamentos/status")
 def tratamentos_status():
     return tratamento.status()

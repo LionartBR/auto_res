@@ -55,6 +55,8 @@
     .log .log-active{font-weight:600}
     .log .log-history{color:var(--muted);font-size:12px}
     .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+    .page-footer{margin:48px auto 24px;text-align:center;font-size:12px;color:var(--muted);line-height:1.6}
+    .page-footer p{margin:0}
     .state{font-weight:700}
     /* sub-abas dentro da seção */
     .subtabs{display:flex;gap:14px;align-items:center;margin:12px 0 6px}
@@ -202,6 +204,12 @@
     <button type="button" id="btnModalOk" class="primary">Ok</button>
   </div>
 </div>
+
+<footer class="page-footer" aria-label="Informações de desenvolvimento">
+  <p>Desenvolvido por:</p>
+  <p>CEFGD/RJ – Recuperação de Débitos do FGTS Perante o Empregador</p>
+  <p>CAIXA™ - 2025</p>
+</footer>
 
 <script>
 function $(selector){ return document.querySelector(selector); }

@@ -334,22 +334,22 @@ function syncLogHeight(){
     resetLogSizing();
     return;
   }
-  const minHeight=Math.min(MIN_LOG_HEIGHT,available);
-  const desiredHeight=Math.max(minHeight,Math.min(available,mainRect.height));
+  const preferredHeight=Math.max(MIN_LOG_HEIGHT,available);
   let viewportCap=null;
   if(typeof window!=="undefined"&&typeof window.innerHeight==="number"){
     const viewportAvailable=window.innerHeight-logRect.top-bottomSpacing;
     if(Number.isFinite(viewportAvailable)){
-      viewportCap=Math.max(minHeight,Math.max(0,viewportAvailable));
+      viewportCap=Math.max(0,viewportAvailable);
     }
   }
-  const isClamped=viewportCap!==null&&desiredHeight>viewportCap;
-  const targetHeight=isClamped?Math.min(desiredHeight,viewportCap):desiredHeight;
+  const isClamped=viewportCap!==null&&preferredHeight>viewportCap;
+  const targetHeight=isClamped?Math.max(0,viewportCap):preferredHeight;
   const asideHeight=targetHeight+relativeTop+bottomSpacing;
   const finalAsideHeight=isClamped?asideHeight:Math.max(mainRect.height,asideHeight);
   const size=`${targetHeight}px`;
   logElement.style.maxHeight=size;
-  logElement.style.minHeight=`${minHeight}px`;
+  const minHeightForStyle=targetHeight<MIN_LOG_HEIGHT?Math.max(0,targetHeight):MIN_LOG_HEIGHT;
+  logElement.style.minHeight=`${minHeightForStyle}px`;
   logElement.style.height=size;
   asideColumn.style.height=`${finalAsideHeight}px`;
   mainColumn.style.minHeight=`${finalAsideHeight}px`;

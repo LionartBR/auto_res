@@ -339,6 +339,16 @@ function getMainIntrinsicHeight(mainRect){
   }else if(intrinsicHeight<minHeight){
     intrinsicHeight=minHeight;
   }
+  const scrollHeight=mainColumn.scrollHeight;
+  if(Number.isFinite(scrollHeight)&&scrollHeight>0){
+    const scrollBasedHeight=scrollHeight+borderTop+borderBottom;
+    if(scrollBasedHeight>intrinsicHeight){
+      intrinsicHeight=scrollBasedHeight;
+    }
+  }
+  if(mainRect&&Number.isFinite(mainRect.height)&&mainRect.height>intrinsicHeight){
+    intrinsicHeight=mainRect.height;
+  }
   if(!Number.isFinite(intrinsicHeight)||intrinsicHeight<=0){
     return mainRect&&Number.isFinite(mainRect.height)?mainRect.height:0;
   }

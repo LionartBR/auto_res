@@ -48,14 +48,52 @@
     .filter-option{display:flex;width:100%;padding:8px 10px;border:0;background:transparent;font-weight:600;color:var(--text);border-radius:8px;cursor:pointer;text-align:left}
     .filter-option:hover,.filter-option:focus-visible{background:rgba(16,140,188,.12);outline:none}
     .filter-option.active{color:var(--accent);background:rgba(16,140,188,.08)}
-    .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,24vw,360px);gap:16px;align-items:stretch}
+    /* grid vira 1 coluna */
+    .grid{display:grid;grid-template-columns:1fr;gap:16px;align-items:stretch}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
-    .grid > div,
-    .grid > aside{display:flex;flex-direction:column;min-height:0}
-    .log{flex:1 1 auto;min-height:280px;height:auto;max-height:none;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fafafa}
-    .log p{margin:0 0 6px}
-    .log .log-active{font-weight:600}
-    .log .log-history{color:var(--muted);font-size:12px}
+    .grid > div{display:flex;flex-direction:column;min-height:0}
+    /* Card de logs */
+    .logs-card{margin-top:16px;border-radius:14px;border:1px solid var(--line);overflow:hidden}
+    .logs-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;background:#fff;cursor:pointer;user-select:none;
+      border-bottom:1px solid var(--line)
+    }
+    .logs-header:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:2px}
+    .logs-title{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--text)}
+    .logs-title .caret{display:inline-block;transition:transform .18s ease;transform-origin:center}
+    .logs-header[aria-expanded="true"] .caret{transform:rotate(90deg)}
+
+    .logs-actions{display:flex;gap:8px;align-items:center;}
+    .logs-actions input[type="date"]{
+      padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit
+    }
+    .btn-export{
+      appearance:none;border:0;background:#108CBC;color:#fff;font-weight:700;
+      padding:8px 12px;border-radius:10px;cursor:pointer
+    }
+    .btn-export:hover{background:#0b749f}
+    .btn-export:disabled{opacity:.5;cursor:not-allowed}
+
+    .logs-body{background:#fff}
+    .logs-table-wrap{
+      /* Altura fixa no abrir + rolagem interna */
+      height:300px;overflow:auto;padding:10px 12px;
+    }
+    .logs-table{width:100%;border-collapse:collapse}
+    .logs-table th,.logs-table td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px}
+    .logs-table th{text-align:left;font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
+
+    /* badges por status */
+    .badge-status{
+      display:inline-block;padding:2px 8px;border-radius:999px;font-weight:800;font-size:11px;
+      border:1px solid transparent
+    }
+    .badge-status.sucesso{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+    .badge-status.falha{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .badge-status.descartado{background:#fffbeb;color:#92400e;border-color:#fde68a}
+
+    .logs-footer{padding:8px 12px 12px}
     .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
     .page-footer{margin:48px auto 24px;text-align:center;font-size:12px;color:var(--muted);line-height:1.6}
     .page-footer p{margin:0}
@@ -120,6 +158,7 @@
                 <button id="btnContinuar" disabled>Continuar</button>
               </div>
             </div>
+            <div class="muted">Status: <span id="estadoTexto">Ocioso</span></div>
             <div class="progress-row">
               <div class="progress" title="Progresso total"><div id="barTotal" style="width:0%"></div></div>
               <span id="lblTotal" class="muted">0% concluído</span>
@@ -193,12 +232,44 @@
                 <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
               </div>
             </div>
-          </div>
 
-          <aside>
-            <h4 style="margin:6px 0 8px">Status: <span class="state" id="estadoTexto">Ocioso</span></h4>
-            <div class="log" id="log"></div>
-          </aside>
+            <!-- Card de Eventos (logs) -->
+            <div id="cardLogs" class="card logs-card" aria-live="polite">
+              <div class="logs-header" id="logsHeader" role="button" tabindex="0" aria-expanded="false" aria-controls="logsBody" title="Mostrar/ocultar janela de eventos (logs)">
+                <div class="logs-title">
+                  <span class="caret" aria-hidden="true">▶</span>
+                  <strong>Janela de Eventos (logs)</strong>
+                </div>
+
+                <div class="logs-actions">
+                  <label class="muted" for="logsFrom">De:</label>
+                  <input type="date" id="logsFrom" aria-label="Data inicial" />
+                  <label class="muted" for="logsTo">Até:</label>
+                  <input type="date" id="logsTo" aria-label="Data final" />
+                  <button id="btnExportLogs" class="btn-export" title="Exportar logs em Excel (.xlsx)">Exportar (.xlsx)</button>
+                </div>
+              </div>
+
+              <div class="logs-body" id="logsBody" hidden>
+                <div class="logs-table-wrap">
+                  <table class="logs-table" aria-label="Últimos eventos">
+                    <thead>
+                      <tr>
+                        <th scope="col">Etapa de execução</th>
+                        <th scope="col">Número do plano</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Usuário responsável</th>
+                        <th scope="col">Duração</th>
+                        <th scope="col">Data e hora</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyLogs"></tbody>
+                  </table>
+                </div>
+                <div class="logs-footer muted">Exibindo os 10 eventos mais recentes. Novos eventos aparecem automaticamente.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -274,9 +345,11 @@ const el={
   lblPaginaTotalOcc:$("#lblPaginaTotalOcc"), footerInfoOcc:$("#footerInfoOcc"),
   filtroOcorrToggle:$("#filtroOcorrToggle"), filtroOcorrMenu:$("#filtroOcorrMenu"),
   filtroOcorrTrigger:$("#filtroOcorrTrigger"),
-  log:$("#log"), estadoTexto:$("#estadoTexto"),
+  estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
-  modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk"), btnModalClose:$("#btnModalClose")
+  modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk"), btnModalClose:$("#btnModalClose"),
+  logsCard:$("#cardLogs"), logsHeader:$("#logsHeader"), logsBody:$("#logsBody"),
+  tbodyLogs:$("#tbodyLogs"), logsFrom:$("#logsFrom"), logsTo:$("#logsTo"), btnExportLogs:$("#btnExportLogs")
 };
 let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1,filtroSituacaoOcc="TODAS";
@@ -286,7 +359,48 @@ let filtroOcorrOutsideHandler=null;
 let filtroOcorrScrollHandler=null;
 let filtroOcorrResizeHandler=null;
 let filtroOcorrKeydownHandler=null;
-let shouldAutoScrollLog=true;
+let logsOpen=false;
+let latestLogs=[];
+const MAX_LOGS=10;
+
+function statusClass(s){
+  const k=(s||"").toLowerCase();
+  if(k.includes("sucesso")) return "sucesso";
+  if(k.includes("falha")) return "falha";
+  if(k.includes("descart")) return "descartado";
+  return "sucesso";
+}
+
+function fmtDuration(ms){
+  const n=Number(ms);
+  if(!Number.isFinite(n)||n<0) return "";
+  if(n<1000) return `${n} ms`;
+  const s=n/1000;
+  if(s<60) return `${s.toFixed(1)} s`;
+  const m=Math.floor(s/60), rem=(s%60).toFixed(0);
+  return `${m}m ${rem}s`;
+}
+
+function fmtLogDate(isoStr){
+  if(!isoStr) return "";
+  return formatDateTime(isoStr,{
+    day:"2-digit",month:"2-digit",year:"numeric",
+    hour:"2-digit",minute:"2-digit",second:"2-digit",
+    hour12:false
+  });
+}
+
+function normEvent(ev){
+  return {
+    id:ev.id||`${ev.numero_plano||""}|${ev.status||""}|${ev.timestamp||""}|${ev.etapa||""}`,
+    etapa:ev.etapa||"",
+    numero_plano:ev.numero_plano||"",
+    status:ev.status||"",
+    usuario:ev.usuario||"",
+    duracao_ms:ev.duracao_ms??null,
+    timestamp:ev.timestamp||null
+  };
+}
 
 function abrirModalConclusao(){
   if(!el.modalConcluido) return;
@@ -350,6 +464,38 @@ function attachCopyHandlers(container){
       }catch{}
     };
   });
+}
+
+function renderLogs(){
+  if(!el.tbodyLogs) return;
+  el.tbodyLogs.innerHTML="";
+  latestLogs
+    .slice()
+    .sort((a,b)=>(new Date(b.timestamp))-(new Date(a.timestamp)))
+    .forEach(ev=>{
+      const tr=document.createElement("tr");
+      const badge=statusClass(ev.status);
+      tr.innerHTML=`
+        <td>${ev.etapa}</td>
+        <td>${ev.numero_plano}</td>
+        <td><span class="badge-status ${badge}">${ev.status}</span></td>
+        <td>${ev.usuario||""}</td>
+        <td>${fmtDuration(ev.duracao_ms)}</td>
+        <td>${fmtLogDate(ev.timestamp)}</td>
+      `;
+      el.tbodyLogs.appendChild(tr);
+    });
+}
+
+async function carregarLogsIniciais(){
+  try{
+    const data=await api("/logs?limit=10&order=desc");
+    const items=Array.isArray(data.items)?data.items:[];
+    latestLogs=items.map(normEvent).slice(0,MAX_LOGS);
+    if(logsOpen) renderLogs();
+  }catch(e){
+    console.warn("Falha ao carregar /logs iniciais:",e);
+  }
 }
 
 async function carregarPlanos(){
@@ -544,58 +690,10 @@ function alternarFiltroOcorrMenu(){
   }
 }
 
-function formatLogMessage(item){
-  const dataHora=formatDateTime(item.timestamp,{
-    day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"
-  });
-  const numero=(item.numero_plano||"").trim();
-  const mensagem=(item.mensagem||"").trim();
-  let corpo="";
-  if(mensagem==="Capturado com sucesso"&&numero){
-    corpo=`${numero} processado com sucesso.`;
-  }else if(mensagem.startsWith("Descartado")&&numero){
-    corpo=`${numero} possui ocorrência.`;
-  }else if(mensagem==="Falha inesperada"&&numero){
-    corpo=`${numero} falhou no processamento.`;
-  }else if(mensagem){
-    corpo=numero?`${numero} — ${mensagem}`:mensagem;
-  }else{
-    corpo=numero;
-  }
-  if(!corpo) return "";
-  return dataHora?`[${dataHora}] ${corpo}`:corpo;
-}
-
-function renderLog(_emProgresso, historico){
-  const container=el.log;
-  const prevScrollTop=container.scrollTop;
-  const nearBottom=(container.scrollHeight - (container.scrollTop + container.clientHeight))<=8;
-  container.innerHTML="";
-  const frag=document.createDocumentFragment();
-  historico.forEach(item=>{
-    const texto=formatLogMessage(item);
-    if(!texto) return;
-    const div=document.createElement("p");
-    div.textContent=texto;
-    div.classList.add("log-history");
-    frag.appendChild(div);
-  });
-  container.appendChild(frag);
-  const stickToBottom=shouldAutoScrollLog||nearBottom;
-  if(stickToBottom){
-    container.scrollTop=container.scrollHeight;
-  }else{
-    const maxScroll=Math.max(0,container.scrollHeight-container.clientHeight);
-    container.scrollTop=Math.min(prevScrollTop,maxScroll);
-  }
-  shouldAutoScrollLog=false;
-}
-
 async function carregarStatus(){
   const s=await api("/captura/status");
   const estadoAtual=s.estado;
   stateButtons(estadoAtual); setBar(s.progresso_total);
-  renderLog(s.em_progresso||[], s.historico||[]);
   const ultimaAtualizacao=formatDateTime(s.ultima_atualizacao);
   el.ultima.textContent="Última atualização: "+(ultimaAtualizacao||"—");
   el.badgeOcorr.textContent = s.ocorrencias_total ?? 0;
@@ -603,6 +701,19 @@ async function carregarStatus(){
     abrirModalConclusao();
   }
   ultimoEstado=estadoAtual;
+
+  try{
+    const incoming=Array.isArray(s.historico)?s.historico:[];
+    if(incoming.length){
+      const map=new Map(latestLogs.map(ev=>[ev.id,ev]));
+      incoming.map(normEvent).forEach(ev=>{map.set(ev.id,ev);});
+      latestLogs=Array.from(map.values())
+        .filter(ev=>ev.timestamp)
+        .sort((a,b)=>(new Date(b.timestamp))-(new Date(a.timestamp)))
+        .slice(0,MAX_LOGS);
+      if(logsOpen) renderLogs();
+    }
+  }catch(_e){}
 }
 
 function startPolling(){
@@ -621,6 +732,74 @@ el.btnProximo.onclick=()=>{if(pagina<maxPaginas){pagina+=1;carregarPlanos()}};
 el.btnAnterior.onclick=()=>{if(pagina>1){pagina-=1;carregarPlanos()}};
 el.btnProximoOcc.onclick=()=>{if(paginaOcc<maxPaginasOcc){paginaOcc+=1;carregarOcorrencias()}};
 el.btnAnteriorOcc.onclick=()=>{if(paginaOcc>1){paginaOcc-=1;carregarOcorrencias()}};
+
+function setLogsOpen(open){
+  logsOpen=!!open;
+  if(!el.logsBody||!el.logsHeader) return;
+  if(logsOpen){
+    el.logsBody.hidden=false;
+    el.logsHeader.setAttribute("aria-expanded","true");
+    if(!latestLogs.length) carregarLogsIniciais().then(()=>renderLogs());
+    else renderLogs();
+  }else{
+    el.logsBody.hidden=true;
+    el.logsHeader.setAttribute("aria-expanded","false");
+  }
+}
+
+if(el.logsHeader){
+  const toggle=(e)=>{e.preventDefault();setLogsOpen(!logsOpen);};
+  el.logsHeader.addEventListener("click",toggle);
+  el.logsHeader.addEventListener("keydown",(e)=>{if(e.key==="Enter"||e.key===" "){toggle(e);} });
+}
+setLogsOpen(false);
+
+function downloadBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+
+function toISODate(val){
+  return /^\d{4}-\d{2}-\d{2}$/.test(val)?val:"";
+}
+
+function toBRFileDate(val){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(val||"");
+  return m?`${m[3]}${m[2]}${m[1]}`:"";
+}
+
+async function exportLogsXlsx(){
+  if(!el.logsFrom||!el.logsTo||!el.btnExportLogs) return;
+  const fromISO=toISODate(el.logsFrom.value);
+  const toISO=toISODate(el.logsTo.value);
+  if(!fromISO||!toISO){
+    alert("Selecione as datas inicial e final.");
+    return;
+  }
+  const fromBR=toBRFileDate(fromISO);
+  const toBR=toBRFileDate(toISO);
+  const filename=`logs_sirep_intervalo_${fromBR}-${toBR}.xlsx`;
+
+  el.btnExportLogs.disabled=true;
+  try{
+    const res=await fetch(`/logs/export?from=${fromISO}&to=${toISO}`,{method:"GET"});
+    if(!res.ok) throw new Error(`Export falhou: ${res.status}`);
+    const blob=await res.blob();
+    downloadBlob(blob,filename);
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível exportar os logs. Tente novamente.");
+  }finally{
+    el.btnExportLogs.disabled=false;
+  }
+}
+
+if(el.btnExportLogs){
+  el.btnExportLogs.addEventListener("click",(e)=>{e.preventDefault();exportLogsXlsx();});
+}
 
 el.subtabPlanos.onclick=()=>{fecharFiltroOcorrMenu();el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";};
 el.subtabOcorr.onclick=()=>{fecharFiltroOcorrMenu();el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();};
@@ -677,7 +856,12 @@ document.addEventListener("keydown",event=>{
   }
 });
 
-document.addEventListener("DOMContentLoaded", async()=>{await carregarStatus();await carregarPlanos();startPolling();});
+document.addEventListener("DOMContentLoaded", async()=>{
+  await carregarStatus();
+  await carregarPlanos();
+  startPolling();
+  carregarLogsIniciais();
+});
 </script>
 </body>
 </html>

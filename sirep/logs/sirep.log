@@ -413,3 +413,11 @@
 2025-09-21 19:43:41 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
 2025-09-21 19:44:24 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
 2025-09-21 19:45:33 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
+2025-09-21 19:49:19 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
+2025-09-21 19:49:19 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
+2025-09-21 19:49:58 INFO sirep.app.captura [captura.py:194]: captura iniciada
+2025-09-21 19:50:54 INFO sirep.app.captura [captura.py:309]: captura finalizada: concluido
+2025-09-21 19:51:44 INFO sirep.app.captura [captura.py:194]: captura iniciada
+2025-09-21 19:51:55 INFO sirep.app.captura [captura.py:227]: captura pausada
+2025-09-21 19:52:05 INFO sirep.app.captura [captura.py:252]: captura continuada
+2025-09-21 19:52:51 INFO sirep.app.captura [captura.py:309]: captura finalizada: concluido

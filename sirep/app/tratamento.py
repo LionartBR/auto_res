@@ -26,7 +26,7 @@ from sirep.shared.fakes import (
 
 logger = logging.getLogger(__name__)
 
-EstadoTratamento = Literal["ocioso", "aguardando", "processando"]
+EstadoTratamento = Literal["ocioso", "aguardando", "processando", "pausado"]
 
 STAGES = [
     (1, "Etapa 1 – Aproveitamento de Recolhimentos"),
@@ -49,6 +49,8 @@ class TratamentoService:
         self._queue_shadow: List[int] = []
         self._current_id: Optional[int] = None
         self._lock = threading.Lock()
+        self._active_event: Optional[asyncio.Event] = None
+        self._processing_enabled = False
 
     # ---- infra auxiliar ----
     @staticmethod
@@ -109,6 +111,8 @@ class TratamentoService:
     # ---- status público ----
     def estado(self) -> EstadoTratamento:
         with self._lock:
+            if self._estado == "pausado":
+                return "pausado"
             if self._current_id is not None:
                 return "processando"
             if self._queue_shadow:
@@ -282,13 +286,71 @@ class TratamentoService:
     # ---- controle de execução ----
     def iniciar(self) -> None:
         loop = self._ensure_loop()
-        self._start_worker(loop)
         with self._lock:
-            if not self._queue_shadow and self._current_id is None:
+            self._processing_enabled = True
+            if self._current_id is not None:
+                self._estado = "processando"
+            elif self._queue_shadow:
+                self._estado = "aguardando"
+            else:
                 self._estado = "ocioso"
+        self._start_worker(loop)
+
+    def pausar(self) -> None:
+        with self._lock:
+            if self._estado not in ("processando", "aguardando"):
+                return
+            self._processing_enabled = False
+            self._estado = "pausado"
+            event = self._active_event
+        if event is not None:
+            self._run_on_loop(event.clear)
+
+    def continuar(self) -> None:
+        loop = self._ensure_loop()
+        with self._lock:
+            if self._estado != "pausado":
+                return
+            self._processing_enabled = True
+            if self._current_id is not None:
+                self._estado = "processando"
+            elif self._queue_shadow:
+                self._estado = "aguardando"
+            else:
+                self._estado = "ocioso"
+            event = self._active_event
+        self._start_worker(loop)
+        if event is not None:
+            self._run_on_loop(event.set, loop=loop)
+
+    async def _wait_resume(self) -> None:
+        while True:
+            event = self._active_event
+            if event is None:
+                return
+            if event.is_set():
+                return
+            await event.wait()
+
+    async def _sleep_with_pause(self, duration: float) -> None:
+        remaining = duration
+        while remaining > 0:
+            await self._wait_resume()
+            interval = min(0.2, remaining)
+            await asyncio.sleep(interval)
+            event = self._active_event
+            if event is not None and not event.is_set():
+                continue
+            remaining -= interval
 
     def _start_worker(self, loop: asyncio.AbstractEventLoop) -> None:
         def ensure_worker() -> None:
+            if self._active_event is None:
+                self._active_event = asyncio.Event()
+            if self._processing_enabled:
+                self._active_event.set()
+            else:
+                self._active_event.clear()
             if self._worker_task is None or getattr(self._worker_task, "done", lambda: True)():
                 self._worker_task = loop.create_task(self._run(), name="tratamento-run")
 
@@ -303,7 +365,7 @@ class TratamentoService:
             self._queue.put_nowait(treatment_id)
             with self._lock:
                 self._queue_shadow.append(treatment_id)
-                if self._current_id is None:
+                if self._current_id is None and self._estado != "pausado":
                     self._estado = "aguardando"
 
         self._run_on_loop(push, loop=loop)
@@ -313,11 +375,13 @@ class TratamentoService:
             self._queue = asyncio.Queue()
         while True:
             treatment_id = await self._queue.get()
+            await self._wait_resume()
             with self._lock:
                 if treatment_id in self._queue_shadow:
                     self._queue_shadow.remove(treatment_id)
                 self._current_id = treatment_id
-                self._estado = "processando"
+                if self._estado != "pausado":
+                    self._estado = "processando"
             try:
                 await self._process_plan(treatment_id)
             except Exception:
@@ -326,7 +390,10 @@ class TratamentoService:
                 with self._lock:
                     self._current_id = None
                     if self._queue_shadow:
-                        self._estado = "aguardando"
+                        if self._processing_enabled:
+                            self._estado = "aguardando"
+                        else:
+                            self._estado = "pausado"
                     else:
                         self._estado = "ocioso"
                 self._queue.task_done()
@@ -348,6 +415,7 @@ class TratamentoService:
             db.commit()
 
             for stage_id, stage_nome in STAGES:
+                await self._wait_resume()
                 self._marcar_inicio_etapa(treatment, stage_id)
                 logs_repo.add(
                     treatment_id=treatment.id,
@@ -357,7 +425,8 @@ class TratamentoService:
                 )
                 db.commit()
 
-                await asyncio.sleep(random.uniform(4.0, 7.0))
+                await self._sleep_with_pause(random.uniform(4.0, 7.0))
+                await self._wait_resume()
 
                 resultado = self._executar_etapa(
                     db=db,

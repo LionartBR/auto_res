@@ -23,10 +23,10 @@
     button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
     select{border:1px solid var(--line);background:#fff;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600;min-width:160px}
     select:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:1px}
-    #btnIniciar,#btnContinuar{padding:9px 14px;font-size:14px;border-radius:10px}
+    #btnIniciar,#btnContinuar,#btnTratamentoIniciar,#btnTratamentoContinuar{padding:9px 14px;font-size:14px;border-radius:10px}
     button.primary{border:0;color:#fff;background:#108CBC;box-shadow:none;transition:transform .15s ease,background-color .15s ease}
     button.primary:hover:not(:disabled){background:#0b749f;transform:translateY(-1px)}
-    #btnContinuar:not(.primary){background:#f3f4f6;color:var(--muted);border-color:#d1d5db}
+    #btnContinuar:not(.primary),#btnTratamentoContinuar:not(.primary){background:#f3f4f6;color:var(--muted);border-color:#d1d5db}
     button:disabled{opacity:.5;cursor:not-allowed}
     .muted{color:var(--muted);font-size:12px}
     .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
@@ -315,7 +315,9 @@
       <section id="tab-tratamento" style="display:none">
         <div class="treatment-controls">
           <button id="btnTratamentoSeed">Migrar planos</button>
-          <button id="btnTratamentoIniciar" class="primary">Iniciar fila</button>
+          <button id="btnTratamentoIniciar" class="primary">Iniciar</button>
+          <button id="btnTratamentoPausar">Pausar</button>
+          <button id="btnTratamentoContinuar" disabled>Continuar</button>
           <span class="muted">Estado: <span id="tratamentoEstado">Ocioso</span></span>
         </div>
         <div class="treatment-actions">
@@ -452,7 +454,8 @@ const el={
   logsCard:$("#cardLogs"), logsHeader:$("#logsHeader"), logsBody:$("#logsBody"),
   tbodyLogs:$("#tbodyLogs"), logsFrom:$("#logsFrom"), logsTo:$("#logsTo"), btnExportLogs:$("#btnExportLogs"),
   tratamentoEstado:$("#tratamentoEstado"), btnTratamentoSeed:$("#btnTratamentoSeed"),
-  btnTratamentoIniciar:$("#btnTratamentoIniciar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
+  btnTratamentoIniciar:$("#btnTratamentoIniciar"), btnTratamentoPausar:$("#btnTratamentoPausar"),
+  btnTratamentoContinuar:$("#btnTratamentoContinuar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
   listaEtapas:$("#listaEtapas"), tratamentoResumo:$("#tratamentoAtualResumo"),
   btnDownloadNotepad:$("#btnDownloadNotepad"), tratamentoEmpty:$("#tratamentoEmpty"),
   tbodyTratamentoLogs:$("#tbodyTratamentoLogs"), inputRescindidosData:$("#inputRescindidosData"),
@@ -875,10 +878,23 @@ function downloadBlob(blob,filename){
 
 function setTratamentoEstado(estado){
   if(!el.tratamentoEstado) return;
+  const s=String(estado||"");
   let label="Ocioso";
-  if(estado==="processando") label="Em execução";
-  else if(estado==="aguardando") label="Aguardando fila";
+  if(s==="processando") label="Em execução";
+  else if(s==="aguardando") label="Aguardando fila";
+  else if(s==="pausado") label="Pausado";
   el.tratamentoEstado.textContent=label;
+  if(el.btnTratamentoIniciar){
+    el.btnTratamentoIniciar.disabled=!(s==="ocioso"||s==="aguardando");
+  }
+  if(el.btnTratamentoPausar){
+    el.btnTratamentoPausar.disabled=(s!=="processando");
+  }
+  if(el.btnTratamentoContinuar){
+    const canContinue=(s==="pausado");
+    el.btnTratamentoContinuar.disabled=!canContinue;
+    el.btnTratamentoContinuar.classList.toggle("primary",canContinue);
+  }
 }
 
 function formatTreatmentStatus(status){
@@ -1068,7 +1084,6 @@ async function migrarPlanos(){
   el.btnTratamentoSeed.disabled=true;
   try{
     await api("/tratamentos/migrar",{method:"POST"});
-    await api("/tratamentos/iniciar",{method:"POST"});
     await carregarTratamentoStatus();
   }catch(e){
     console.error(e);
@@ -1089,6 +1104,34 @@ async function iniciarTratamento(){
     alert("Não foi possível iniciar a fila de tratamento.");
   }finally{
     el.btnTratamentoIniciar.disabled=false;
+  }
+}
+
+async function pausarTratamento(){
+  if(!el.btnTratamentoPausar) return;
+  el.btnTratamentoPausar.disabled=true;
+  try{
+    await api("/tratamentos/pausar",{method:"POST"});
+    await carregarTratamentoStatus();
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível pausar a fila de tratamento.");
+  }finally{
+    el.btnTratamentoPausar.disabled=false;
+  }
+}
+
+async function continuarTratamento(){
+  if(!el.btnTratamentoContinuar) return;
+  el.btnTratamentoContinuar.disabled=true;
+  try{
+    await api("/tratamentos/continuar",{method:"POST"});
+    await carregarTratamentoStatus();
+  }catch(e){
+    console.error(e);
+    alert("Não foi possível continuar a fila de tratamento.");
+  }finally{
+    el.btnTratamentoContinuar.disabled=false;
   }
 }
 
@@ -1199,6 +1242,18 @@ if(el.btnTratamentoIniciar){
   el.btnTratamentoIniciar.addEventListener("click",event=>{
     event.preventDefault();
     iniciarTratamento();
+  });
+}
+if(el.btnTratamentoPausar){
+  el.btnTratamentoPausar.addEventListener("click",event=>{
+    event.preventDefault();
+    pausarTratamento();
+  });
+}
+if(el.btnTratamentoContinuar){
+  el.btnTratamentoContinuar.addEventListener("click",event=>{
+    event.preventDefault();
+    continuarTratamento();
   });
 }
 

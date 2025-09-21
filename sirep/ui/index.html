@@ -37,6 +37,7 @@
     .right{text-align:right}
     th.filterable{position:relative}
     .th-filter{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+    .th-filter.no-toggle{cursor:default}
     .th-filter-label{display:flex;flex-direction:column;line-height:1}
     .filter-toggle{border:0;background:transparent;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:background-color .2s ease}
     .th-filter:hover .filter-toggle,.filter-toggle:focus-visible{background:rgba(16,140,188,.12);outline:none}
@@ -124,8 +125,19 @@
               <div style="overflow:auto">
                 <table>
                   <thead><tr>
-                    <th>CARTEIRA</th><th>GIFUG</th><th>SITUAÇÃO</th><th>TIPO</th>
-                    <th class="right">DIAS EM ATRASO</th><th class="right">SALDO</th><th>DT SITUAÇÃO</th>
+                    <th scope="col">CARTEIRA</th>
+                    <th scope="col">GIFUG</th>
+                    <th class="filterable" scope="col">
+                      <div class="th-filter no-toggle">
+                        <div class="th-filter-label">
+                          <span>SITUAÇÃO</span>
+                        </div>
+                      </div>
+                    </th>
+                    <th scope="col">TIPO</th>
+                    <th class="right" scope="col">DIAS EM ATRASO</th>
+                    <th class="right" scope="col">SALDO</th>
+                    <th scope="col">DT SITUAÇÃO</th>
                   </tr></thead>
                   <tbody id="tbody"></tbody>
                 </table>

@@ -70,24 +70,20 @@
     .copy.copied::before{content:"";position:absolute;left:50%;top:-10px;transform:translateX(-50%);border:6px solid transparent;border-top-color:rgba(17,17,17,.92);pointer-events:none;animation:copy-tooltip-arrow .9s ease;z-index:19}
     @keyframes copy-tooltip{0%{opacity:0;transform:translate(-50%,-4px)}20%{opacity:1;transform:translate(-50%,-10px)}80%{opacity:1;transform:translate(-50%,-12px)}100%{opacity:0;transform:translate(-50%,-14px)}}
     @keyframes copy-tooltip-arrow{0%{opacity:0;transform:translate(-50%,2px)}20%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,-1px)}100%{opacity:0;transform:translate(-50%,-2px)}}
-    .modal-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(17,24,39,.55);backdrop-filter:blur(2px);z-index:50;padding:16px}
+    .modal-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);z-index:50;padding:16px}
     .modal-backdrop.active{display:flex}
-    .modal-card{background:#f8fafc;border-radius:18px;max-width:360px;width:100%;box-shadow:0 20px 48px rgba(15,23,42,.28);border:1px solid rgba(15,23,42,.14);overflow:hidden;padding:0;text-align:left}
-    .modal-card[role="document"]{outline:none}
-    .modal-titlebar{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#0b5fa8,#108cbc);color:#fff;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.35)}
-    .modal-titlebar h3{margin:0;font-size:16px;font-weight:800;letter-spacing:.3px}
-    .modal-title-icon{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff}
-    .modal-title-icon svg{width:18px;height:18px;stroke:#fff;stroke-width:2.2}
-    .modal-close{margin-left:auto;border:0;background:rgba(255,255,255,.16);color:#fff;width:28px;height:28px;border-radius:6px;font-size:16px;font-weight:700;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s ease,transform .15s ease}
-    .modal-close:hover,.modal-close:focus-visible{background:rgba(255,255,255,.28);outline:none;transform:translateY(-1px)}
-    .modal-body{padding:24px 24px 18px;display:flex;gap:16px;align-items:flex-start;background:#fff}
-    .modal-illustration{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,rgba(15,95,168,.12),rgba(16,140,188,.25));display:inline-flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;border:1px solid rgba(16,140,188,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.4)}
-    .modal-illustration svg{width:26px;height:26px;stroke:currentColor;stroke-width:2.2}
-    .modal-copy{flex:1 1 auto;color:var(--text)}
-    .modal-message{margin:0 0 8px;font-size:17px;font-weight:800;color:#0f172a}
-    .modal-detail{margin:0;color:#475569;font-size:13px;line-height:1.6}
-    .modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:18px 24px 22px;background:linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%);border-top:1px solid rgba(15,23,42,.08)}
-    .modal-card button{min-width:96px}
+    .modal-window{background:#f7f7f7;border:1px solid rgba(17,24,39,.18);box-shadow:0 18px 36px rgba(15,23,42,.28);max-width:320px;min-width:260px;width:100%;font-family:inherit;outline:none}
+    .modal-window[role="document"]:focus{outline:2px solid rgba(16,140,188,.4);outline-offset:-4px}
+    .modal-titlebar{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(90deg,var(--hdr-a),var(--hdr-b),var(--hdr-c));color:#fff;padding:6px 10px;font-size:13px;font-weight:600;letter-spacing:.2px}
+    .modal-titlebar .modal-title{margin:0;min-height:1em}
+    .modal-window button{font-family:inherit;font-weight:600;border-radius:0;background:#fff;border:1px solid rgba(17,24,39,.18);box-shadow:none;cursor:pointer;transition:none;color:#111;padding:6px 12px}
+    .modal-window button:focus-visible{outline:2px solid rgba(16,140,188,.4);outline-offset:2px}
+    .modal-window button:active{background:#f3f4f6}
+    .modal-close{margin-left:12px;min-width:auto;width:22px;height:22px;padding:0;line-height:1;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
+    .modal-body{padding:24px 20px;background:#f7f7f7}
+    .modal-body p{margin:0;font-size:14px;font-weight:400;color:#000}
+    .modal-actions{display:flex;justify-content:center;padding:0 20px 18px;background:#f7f7f7}
+    .modal-actions .modal-button{min-width:96px;font-size:13px}
   </style>
 </head>
 <body>
@@ -209,26 +205,17 @@
   </div>
 </main>
 
-<div class="modal-backdrop" id="modalConcluido" role="dialog" aria-modal="true" aria-labelledby="modalConcluidoTitulo" aria-hidden="true">
-  <div class="modal-card" role="document" tabindex="-1">
+<div class="modal-backdrop" id="modalConcluido" role="dialog" aria-modal="true" aria-labelledby="modalConcluidoMensagem" aria-describedby="modalConcluidoMensagem" aria-hidden="true">
+  <div class="modal-window" role="document" tabindex="-1">
     <div class="modal-titlebar">
-      <span class="modal-title-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="m6 12 4 4 8-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </span>
-      <h3 id="modalConcluidoTitulo">Processamento concluído</h3>
+      <span class="modal-title" aria-hidden="true"></span>
       <button type="button" id="btnModalClose" class="modal-close" aria-label="Fechar aviso">×</button>
     </div>
     <div class="modal-body">
-      <div class="modal-illustration" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9Z" stroke="currentColor" stroke-width="1.6"/><path d="m9.5 12 1.95 1.95 4.05-4.05" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <div class="modal-copy">
-        <p class="modal-message">Captura finalizada com sucesso.</p>
-        <p class="modal-detail">Os planos foram processados sem pendências e esta janela segue um visual clássico para destacar o fim da captura.</p>
-      </div>
+      <p id="modalConcluidoMensagem">Processamento concluído</p>
     </div>
     <div class="modal-actions">
-      <button type="button" id="btnModalOk" class="primary">Ok</button>
+      <button type="button" id="btnModalOk" class="modal-button">Ok</button>
     </div>
   </div>
 </div>
@@ -403,7 +390,7 @@ function abrirModalConclusao(){
   if(el.btnModalOk){
     try{el.btnModalOk.focus();return;}catch(_e){}
   }
-  const card=el.modalConcluido?el.modalConcluido.querySelector(".modal-card"):null;
+  const card=el.modalConcluido?el.modalConcluido.querySelector(".modal-window"):null;
   if(card){
     try{card.focus();}catch(_e){}
   }

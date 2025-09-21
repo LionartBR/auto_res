@@ -38,8 +38,6 @@
     th.filterable{position:relative}
     .th-filter{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
     .th-filter-label{display:flex;flex-direction:column;line-height:1}
-    .th-filter-current{font-size:11px;color:var(--muted);font-weight:600}
-    .th-filter-current.is-default{display:none}
     .filter-toggle{border:0;background:transparent;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:background-color .2s ease}
     .th-filter:hover .filter-toggle,.filter-toggle:focus-visible{background:rgba(16,140,188,.12);outline:none}
     .filter-toggle svg{width:12px;height:12px;stroke:#4b5563;stroke-width:2;fill:none;transition:transform .2s ease}
@@ -49,7 +47,7 @@
     .filter-option{display:flex;width:100%;padding:8px 10px;border:0;background:transparent;font-weight:600;color:var(--text);border-radius:8px;cursor:pointer;text-align:left}
     .filter-option:hover,.filter-option:focus-visible{background:rgba(16,140,188,.12);outline:none}
     .filter-option.active{color:var(--accent);background:rgba(16,140,188,.08)}
-    .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,28vw,420px);gap:16px;align-items:stretch} @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,24vw,360px);gap:16px;align-items:stretch} @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .grid>aside{display:flex;flex-direction:column;min-height:0}
     .log{border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;background:#fafafa;flex:1 1 auto;min-height:280px}
     .log p{margin:0 0 6px}
@@ -148,7 +146,6 @@
                       <div class="th-filter" id="filtroOcorrTrigger">
                         <div class="th-filter-label">
                           <span>SITUAÇÃO</span>
-                          <span class="th-filter-current is-default" id="filtroOcorrAtual">Todas</span>
                         </div>
                         <button type="button" class="filter-toggle" id="filtroOcorrToggle" aria-haspopup="true" aria-expanded="false" aria-controls="filtroOcorrMenu" aria-label="Filtrar ocorrências por situação" title="Filtrar ocorrências por situação">
                           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -239,7 +236,7 @@ const el={
   tbodyOcc:$("#tbodyOcc"), btnProximoOcc:$("#btnProximoOcc"), btnAnteriorOcc:$("#btnAnteriorOcc"),
   lblPaginaTotalOcc:$("#lblPaginaTotalOcc"), footerInfoOcc:$("#footerInfoOcc"),
   filtroOcorrToggle:$("#filtroOcorrToggle"), filtroOcorrMenu:$("#filtroOcorrMenu"),
-  filtroOcorrCurrent:$("#filtroOcorrAtual"), filtroOcorrTrigger:$("#filtroOcorrTrigger"),
+  filtroOcorrTrigger:$("#filtroOcorrTrigger"),
   log:$("#log"), estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk")
@@ -465,12 +462,18 @@ function atualizarFiltroOcorrMenu(){
       activeLabel=option.textContent.trim();
     }
   });
-  if(!activeLabel&&options.length>0){
-    activeLabel=options[0].textContent.trim();
+  const fallbackLabel=options.length>0?options[0].textContent.trim():"";
+  const currentLabel=activeLabel||fallbackLabel;
+  if(el.filtroOcorrToggle){
+    const baseLabel="Filtrar ocorrências por situação";
+    const suffix=currentLabel?` (atual: ${currentLabel})`:"";
+    el.filtroOcorrToggle.setAttribute("title",baseLabel+suffix);
+    el.filtroOcorrToggle.setAttribute("aria-label",baseLabel+suffix);
   }
-  if(el.filtroOcorrCurrent){
-    el.filtroOcorrCurrent.textContent=activeLabel;
-    el.filtroOcorrCurrent.classList.toggle("is-default",filtroSituacaoOcc==="TODAS");
+  if(el.filtroOcorrTrigger){
+    const triggerTitle=currentLabel?`Situação (atual: ${currentLabel})`:"Situação";
+    el.filtroOcorrTrigger.setAttribute("title",triggerTitle);
+    el.filtroOcorrTrigger.setAttribute("aria-label",triggerTitle);
   }
 }
 
@@ -588,7 +591,7 @@ function alternarFiltroOcorrMenu(){
 
 function formatLogMessage(item){
   const dataHora=formatDateTime(item.timestamp,{
-    day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"
+    day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"
   });
   const numero=(item.numero_plano||"").trim();
   const mensagem=(item.mensagem||"").trim();

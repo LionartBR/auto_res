@@ -33,7 +33,22 @@
     .progress{height:10px;background:#f3f4f6;border:1px solid var(--line);border-radius:999px;overflow:hidden;width:100%;min-width:220px;flex:1 1 auto}
     .progress>div{height:100%;background:linear-gradient(90deg,var(--prog-a),var(--prog-b));position:relative;transition:width .2s ease}
     table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid var(--line)}
-    th{text-align:left;font-size:12px;color:#4b5563} .right{text-align:right}
+    th{text-align:left;font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
+    .right{text-align:right}
+    th.filterable{position:relative}
+    .th-filter{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+    .th-filter-label{display:flex;flex-direction:column;line-height:1}
+    .th-filter-current{font-size:11px;color:var(--muted);font-weight:600}
+    .th-filter-current.is-default{display:none}
+    .filter-toggle{border:0;background:transparent;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:background-color .2s ease}
+    .th-filter:hover .filter-toggle,.filter-toggle:focus-visible{background:rgba(16,140,188,.12);outline:none}
+    .filter-toggle svg{width:12px;height:12px;stroke:#4b5563;stroke-width:2;fill:none;transition:transform .2s ease}
+    .filter-toggle.open svg{transform:rotate(180deg)}
+    .filter-menu{position:fixed;top:auto;left:auto;min-width:160px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 32px rgba(15,23,42,.18);padding:6px;display:none;z-index:200}
+    .filter-menu.open{display:block}
+    .filter-option{display:flex;width:100%;padding:8px 10px;border:0;background:transparent;font-weight:600;color:var(--text);border-radius:8px;cursor:pointer;text-align:left}
+    .filter-option:hover,.filter-option:focus-visible{background:rgba(16,140,188,.12);outline:none}
+    .filter-option.active{color:var(--accent);background:rgba(16,140,188,.08)}
     .grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,28vw,420px);gap:16px;align-items:stretch} @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .grid>aside{display:flex;flex-direction:column;min-height:0}
     .log{border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;background:#fafafa;flex:1 1 auto;min-height:280px}
@@ -125,23 +140,32 @@
 
             <!-- Tabela Ocorrências -->
             <div id="wrapOcorr" style="display:none">
-              <div class="controls" style="margin-bottom:10px;">
-                <label for="filtroOcorr" style="font-weight:600;">Exibir:</label>
-                <select id="filtroOcorr">
-                  <option value="TODAS">Todas</option>
-                  <option value="SIT ESPECIAL">Sit especial</option>
-                  <option value="LIQUIDADO">Liquidado</option>
-                  <option value="RESCINDIDO">Rescindido</option>
-                  <option value="GRDE Emitida">GRDE emitida</option>
-                </select>
-              </div>
               <div style="overflow:auto">
                 <table>
                   <thead><tr>
-                    <th>CARTEIRA</th><th>SITUAÇÃO</th><th>CNPJ</th><th>TIPO</th><th class="right">SALDO</th><th>DT SITUAÇÃO</th>
+                    <th>CARTEIRA</th>
+                    <th class="filterable" scope="col">
+                      <div class="th-filter" id="filtroOcorrTrigger">
+                        <div class="th-filter-label">
+                          <span>SITUAÇÃO</span>
+                          <span class="th-filter-current is-default" id="filtroOcorrAtual">Todas</span>
+                        </div>
+                        <button type="button" class="filter-toggle" id="filtroOcorrToggle" aria-haspopup="true" aria-expanded="false" aria-controls="filtroOcorrMenu" aria-label="Filtrar ocorrências por situação" title="Filtrar ocorrências por situação">
+                          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                      </div>
+                    </th>
+                    <th>CNPJ</th><th>TIPO</th><th class="right">SALDO</th><th>DT SITUAÇÃO</th>
                   </tr></thead>
                   <tbody id="tbodyOcc"></tbody>
                 </table>
+              </div>
+              <div class="filter-menu" id="filtroOcorrMenu" role="menu" aria-labelledby="filtroOcorrTrigger">
+                <button type="button" class="filter-option active" data-value="TODAS" role="menuitemradio" aria-checked="true">Todas</button>
+                <button type="button" class="filter-option" data-value="SIT ESPECIAL" role="menuitemradio" aria-checked="false">Sit especial</button>
+                <button type="button" class="filter-option" data-value="LIQUIDADO" role="menuitemradio" aria-checked="false">Liquidado</button>
+                <button type="button" class="filter-option" data-value="RESCINDIDO" role="menuitemradio" aria-checked="false">Rescindido</button>
+                <button type="button" class="filter-option" data-value="GRDE Emitida" role="menuitemradio" aria-checked="false">GRDE emitida</button>
               </div>
               <div class="footer">
                 <div class="muted" id="footerInfoOcc">nada a exibir por aqui.</div>
@@ -214,7 +238,8 @@ const el={
   lblPaginaTotal:$("#lblPaginaTotal"), footerInfo:$("#footerInfo"),
   tbodyOcc:$("#tbodyOcc"), btnProximoOcc:$("#btnProximoOcc"), btnAnteriorOcc:$("#btnAnteriorOcc"),
   lblPaginaTotalOcc:$("#lblPaginaTotalOcc"), footerInfoOcc:$("#footerInfoOcc"),
-  filtroOcorr:$("#filtroOcorr"),
+  filtroOcorrToggle:$("#filtroOcorrToggle"), filtroOcorrMenu:$("#filtroOcorrMenu"),
+  filtroOcorrCurrent:$("#filtroOcorrAtual"), filtroOcorrTrigger:$("#filtroOcorrTrigger"),
   log:$("#log"), estadoTexto:$("#estadoTexto"),
   subtabPlanos:$("#subtabPlanos"), subtabOcorr:$("#subtabOcorr"), badgeOcorr:$("#badgeOcorr"),
   modalConcluido:$("#modalConcluido"), btnModalOk:$("#btnModalOk")
@@ -308,6 +333,10 @@ let pagina=1,tamanho=10,totalPlanos={all:0,passiveis:0},maxPaginas=1;
 let paginaOcc=1,totalOcc=0,maxPaginasOcc=1,filtroSituacaoOcc="TODAS";
 let timer=null;
 let ultimoEstado=null;
+let filtroOcorrOutsideHandler=null;
+let filtroOcorrScrollHandler=null;
+let filtroOcorrResizeHandler=null;
+let filtroOcorrKeydownHandler=null;
 
 function abrirModalConclusao(){
   if(!el.modalConcluido) return;
@@ -419,7 +448,142 @@ async function carregarOcorrencias(){
   });
   attachCopyHandlers(el.tbodyOcc);
   updateFooterOcc(totalRegistros>0);
+  atualizarFiltroOcorrMenu();
   scheduleLogSync();
+}
+
+function atualizarFiltroOcorrMenu(){
+  if(!el.filtroOcorrMenu) return;
+  const options=el.filtroOcorrMenu.querySelectorAll(".filter-option");
+  let activeLabel="";
+  options.forEach(option=>{
+    const value=option.getAttribute("data-value")||"";
+    const isActive=value===filtroSituacaoOcc;
+    option.classList.toggle("active",isActive);
+    option.setAttribute("aria-checked",isActive?"true":"false");
+    if(isActive){
+      activeLabel=option.textContent.trim();
+    }
+  });
+  if(!activeLabel&&options.length>0){
+    activeLabel=options[0].textContent.trim();
+  }
+  if(el.filtroOcorrCurrent){
+    el.filtroOcorrCurrent.textContent=activeLabel;
+    el.filtroOcorrCurrent.classList.toggle("is-default",filtroSituacaoOcc==="TODAS");
+  }
+}
+
+function posicionarFiltroOcorrMenu(){
+  if(!el.filtroOcorrMenu||!el.filtroOcorrTrigger) return;
+  const triggerRect=el.filtroOcorrTrigger.getBoundingClientRect();
+  const minWidth=160;
+  const margin=12;
+  const viewportWidth=window.innerWidth||document.documentElement.clientWidth||0;
+  const width=Math.max(minWidth,triggerRect.width);
+  let left=triggerRect.left;
+  if(left+width+margin>viewportWidth){
+    left=Math.max(margin,viewportWidth-width-margin);
+  }
+  el.filtroOcorrMenu.style.minWidth=`${Math.round(width)}px`;
+  el.filtroOcorrMenu.style.left=`${Math.round(left)}px`;
+  let top=triggerRect.bottom+6;
+  el.filtroOcorrMenu.style.top=`${Math.round(top)}px`;
+  const menuRect=el.filtroOcorrMenu.getBoundingClientRect();
+  const viewportHeight=window.innerHeight||document.documentElement.clientHeight||0;
+  if(menuRect.bottom>viewportHeight-margin){
+    const adjustedTop=Math.max(margin,triggerRect.top-menuRect.height-6);
+    el.filtroOcorrMenu.style.top=`${Math.round(adjustedTop)}px`;
+  }
+}
+
+function abrirFiltroOcorrMenu(){
+  if(!el.filtroOcorrMenu) return;
+  if(!el.filtroOcorrMenu.classList.contains("open")){
+    el.filtroOcorrMenu.classList.add("open");
+    if(el.filtroOcorrToggle){
+      el.filtroOcorrToggle.setAttribute("aria-expanded","true");
+      el.filtroOcorrToggle.classList.add("open");
+    }
+    if(!filtroOcorrOutsideHandler){
+      filtroOcorrOutsideHandler=(event)=>{
+        const target=event.target;
+        if(el.filtroOcorrMenu&&el.filtroOcorrMenu.contains(target)) return;
+        if(el.filtroOcorrToggle&&el.filtroOcorrToggle.contains(target)) return;
+        if(el.filtroOcorrTrigger&&el.filtroOcorrTrigger.contains(target)) return;
+        fecharFiltroOcorrMenu();
+      };
+      document.addEventListener("mousedown",filtroOcorrOutsideHandler);
+      document.addEventListener("touchstart",filtroOcorrOutsideHandler);
+    }
+    if(!filtroOcorrScrollHandler){
+      filtroOcorrScrollHandler=()=>fecharFiltroOcorrMenu();
+      window.addEventListener("scroll",filtroOcorrScrollHandler,true);
+    }
+    if(!filtroOcorrResizeHandler){
+      filtroOcorrResizeHandler=()=>{
+        if(el.filtroOcorrMenu&&el.filtroOcorrMenu.classList.contains("open")){
+          posicionarFiltroOcorrMenu();
+        }
+      };
+      window.addEventListener("resize",filtroOcorrResizeHandler);
+    }
+    if(!filtroOcorrKeydownHandler){
+      filtroOcorrKeydownHandler=(event)=>{
+        if(event.key==="Escape"){
+          fecharFiltroOcorrMenu();
+          if(el.filtroOcorrToggle){
+            try{el.filtroOcorrToggle.focus({preventScroll:true});}catch(_e){}
+          }
+        }
+      };
+      document.addEventListener("keydown",filtroOcorrKeydownHandler);
+    }
+  }
+  posicionarFiltroOcorrMenu();
+  const activeOption=el.filtroOcorrMenu.querySelector(".filter-option.active");
+  if(activeOption){
+    try{activeOption.focus({preventScroll:true});}catch(_e){}
+  }
+}
+
+function fecharFiltroOcorrMenu(){
+  if(!el.filtroOcorrMenu) return;
+  if(!el.filtroOcorrMenu.classList.contains("open")) return;
+  el.filtroOcorrMenu.classList.remove("open");
+  el.filtroOcorrMenu.style.removeProperty("left");
+  el.filtroOcorrMenu.style.removeProperty("top");
+  el.filtroOcorrMenu.style.removeProperty("minWidth");
+  if(el.filtroOcorrToggle){
+    el.filtroOcorrToggle.setAttribute("aria-expanded","false");
+    el.filtroOcorrToggle.classList.remove("open");
+  }
+  if(filtroOcorrOutsideHandler){
+    document.removeEventListener("mousedown",filtroOcorrOutsideHandler);
+    document.removeEventListener("touchstart",filtroOcorrOutsideHandler);
+    filtroOcorrOutsideHandler=null;
+  }
+  if(filtroOcorrScrollHandler){
+    window.removeEventListener("scroll",filtroOcorrScrollHandler,true);
+    filtroOcorrScrollHandler=null;
+  }
+  if(filtroOcorrResizeHandler){
+    window.removeEventListener("resize",filtroOcorrResizeHandler);
+    filtroOcorrResizeHandler=null;
+  }
+  if(filtroOcorrKeydownHandler){
+    document.removeEventListener("keydown",filtroOcorrKeydownHandler);
+    filtroOcorrKeydownHandler=null;
+  }
+}
+
+function alternarFiltroOcorrMenu(){
+  if(!el.filtroOcorrMenu) return;
+  if(el.filtroOcorrMenu.classList.contains("open")){
+    fecharFiltroOcorrMenu();
+  }else{
+    abrirFiltroOcorrMenu();
+  }
 }
 
 function formatLogMessage(item){
@@ -499,16 +663,42 @@ el.btnAnterior.onclick=()=>{if(pagina>1){pagina-=1;carregarPlanos()}};
 el.btnProximoOcc.onclick=()=>{if(paginaOcc<maxPaginasOcc){paginaOcc+=1;carregarOcorrencias()}};
 el.btnAnteriorOcc.onclick=()=>{if(paginaOcc>1){paginaOcc-=1;carregarOcorrencias()}};
 
-el.subtabPlanos.onclick=()=>{el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";scheduleLogSync();};
-el.subtabOcorr.onclick=()=>{el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();scheduleLogSync();};
+el.subtabPlanos.onclick=()=>{fecharFiltroOcorrMenu();el.subtabPlanos.classList.add("active");el.subtabOcorr.classList.remove("active");$("#wrapPlanos").style.display="block";$("#wrapOcorr").style.display="none";scheduleLogSync();};
+el.subtabOcorr.onclick=()=>{fecharFiltroOcorrMenu();el.subtabOcorr.classList.add("active");el.subtabPlanos.classList.remove("active");$("#wrapPlanos").style.display="none";$("#wrapOcorr").style.display="block";carregarOcorrencias();scheduleLogSync();};
 
-if(el.filtroOcorr){
-  el.filtroOcorr.addEventListener("change",()=>{
-    filtroSituacaoOcc=el.filtroOcorr.value||"TODAS";
-    paginaOcc=1;
-    carregarOcorrencias();
+if(el.filtroOcorrToggle){
+  el.filtroOcorrToggle.addEventListener("click",event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    alternarFiltroOcorrMenu();
   });
 }
+if(el.filtroOcorrTrigger){
+  el.filtroOcorrTrigger.addEventListener("click",event=>{
+    if(event.target&&event.target.closest(".filter-toggle")) return;
+    event.preventDefault();
+    alternarFiltroOcorrMenu();
+  });
+}
+if(el.filtroOcorrMenu){
+  el.filtroOcorrMenu.querySelectorAll(".filter-option").forEach(option=>{
+    option.addEventListener("click",event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      const value=option.getAttribute("data-value")||"";
+      if(!value) return;
+      if(value!==filtroSituacaoOcc){
+        filtroSituacaoOcc=value;
+        paginaOcc=1;
+        atualizarFiltroOcorrMenu();
+        carregarOcorrencias();
+      }
+      fecharFiltroOcorrMenu();
+    });
+  });
+}
+
+atualizarFiltroOcorrMenu();
 
 if(el.btnModalOk){
   el.btnModalOk.addEventListener("click",()=>{

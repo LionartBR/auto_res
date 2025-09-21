@@ -280,6 +280,8 @@ function resetLogSizing(){
   }
   if(mainColumn){
     mainColumn.style.removeProperty("minHeight");
+    mainColumn.style.removeProperty("maxHeight");
+    mainColumn.style.removeProperty("overflow");
   }
 }
 function syncLogHeight(){
@@ -293,6 +295,8 @@ function syncLogHeight(){
   logElement.style.removeProperty("height");
   asideColumn.style.removeProperty("height");
   mainColumn.style.removeProperty("minHeight");
+  mainColumn.style.removeProperty("maxHeight");
+  mainColumn.style.removeProperty("overflow");
   const isStacked=typeof window!=="undefined"&&typeof window.matchMedia==="function"&&window.matchMedia("(max-width: 980px)").matches;
   if(isStacked){
     resetLogSizing();
@@ -316,6 +320,7 @@ function syncLogHeight(){
     return;
   }
   const minHeight=Math.min(MIN_LOG_HEIGHT,available);
+  const desiredHeight=Math.max(minHeight,Math.min(available,mainRect.height));
   let viewportCap=null;
   if(typeof window!=="undefined"&&typeof window.innerHeight==="number"){
     const viewportAvailable=window.innerHeight-logRect.top-bottomSpacing;
@@ -323,18 +328,23 @@ function syncLogHeight(){
       viewportCap=Math.max(minHeight,Math.max(0,viewportAvailable));
     }
   }
-  let targetHeight=Math.max(minHeight,Math.min(available,mainRect.height));
-  if(viewportCap!==null){
-    targetHeight=Math.min(targetHeight,viewportCap);
-  }
+  const isClamped=viewportCap!==null&&desiredHeight>viewportCap;
+  const targetHeight=isClamped?Math.min(desiredHeight,viewportCap):desiredHeight;
   const asideHeight=targetHeight+relativeTop+bottomSpacing;
-  const finalAsideHeight=Math.max(mainRect.height,asideHeight);
+  const finalAsideHeight=isClamped?asideHeight:Math.max(mainRect.height,asideHeight);
   const size=`${targetHeight}px`;
   logElement.style.maxHeight=size;
   logElement.style.minHeight=`${minHeight}px`;
   logElement.style.height=size;
   asideColumn.style.height=`${finalAsideHeight}px`;
   mainColumn.style.minHeight=`${finalAsideHeight}px`;
+  if(isClamped){
+    mainColumn.style.maxHeight=`${finalAsideHeight}px`;
+    mainColumn.style.overflow="auto";
+  }else{
+    mainColumn.style.removeProperty("maxHeight");
+    mainColumn.style.removeProperty("overflow");
+  }
 }
 function scheduleLogSync(){
   if(logHeightFrame!==null) return;

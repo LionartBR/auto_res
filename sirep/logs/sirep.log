@@ -7,3 +7,4 @@
 2025-09-22 19:32:54 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
 2025-09-22 19:43:12 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
 2025-09-22 19:44:18 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
+2025-09-22 20:16:26 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback

@@ -111,12 +111,23 @@ def test_rescindidos_txt_endpoint(client: TestClient):
         db.add(tratamento)
         db.commit()
 
-    response = client.get(f"/tratamentos/rescindidos-txt?data={hoje.isoformat()}")
+    response = client.get(
+        "/tratamentos/rescindidos-txt",
+        params={"from": hoje.isoformat(), "to": hoje.isoformat()},
+    )
     assert response.status_code == 200
     body = response.text
     assert "12345678000190" in body
     assert "98765432000109" in body
     assert response.headers.get("content-disposition", "").startswith("attachment")
+
+
+def test_rescindidos_txt_intervalo_invalido(client: TestClient):
+    response = client.get(
+        "/tratamentos/rescindidos-txt",
+        params={"from": "2024-01-10", "to": "2024-01-09"},
+    )
+    assert response.status_code == 400
 
 
 def test_tratamento_continuar_apos_restaurar(monkeypatch):

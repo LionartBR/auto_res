@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-import threading
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date
 from typing import Dict, List, Literal, Optional
 
+from sirep.app.async_loop import AsyncLoopMixin
 from sirep.infra.db import SessionLocal
 from sirep.infra.repositories import (
     PlanRepository,
@@ -54,15 +54,15 @@ class CapturaStatus:
     last_error: Optional[str] = None  # <<< surfaced
     historico: List[PlanoHistorico] = field(default_factory=list)
 
-class CapturaService:
+class CapturaService(AsyncLoopMixin):
+    _ASYNC_LOOP_THREAD_NAME = "captura-loop"
+
     def __init__(self) -> None:
+        super().__init__()
         self._status = CapturaStatus()
         self._loop_task: Optional[asyncio.Future] = None
         self._pause_evt: Optional[asyncio.Event] = None
         self._stop_evt: Optional[asyncio.Event] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._loop_thread: Optional[threading.Thread] = None
-        self._loop_ready = threading.Event()
         self._total_alvos = 50
         self._velocidade = 1
         self._step_min = 0.40
@@ -95,56 +95,6 @@ class CapturaService:
         self._pause_evt = None
         self._stop_evt = None
         self._history_loaded = False
-
-    @staticmethod
-    async def _call_sync(func) -> None:
-        func()
-
-    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop is not None:
-            self._loop = loop
-            return loop
-
-        existing = self._loop
-        if existing and existing.is_running():
-            return existing
-
-        loop = asyncio.new_event_loop()
-        self._loop = loop
-        self._loop_ready.clear()
-
-        def runner() -> None:
-            asyncio.set_event_loop(loop)
-            self._loop_ready.set()
-            loop.run_forever()
-
-        self._loop_thread = threading.Thread(target=runner, name="captura-loop", daemon=True)
-        self._loop_thread.start()
-        self._loop_ready.wait()
-        return loop
-
-    def _run_on_loop(self, func, *, wait: bool = False, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-        target = loop or self._loop
-        if target is None:
-            return
-
-        try:
-            running = asyncio.get_running_loop()
-        except RuntimeError:
-            running = None
-
-        if running is target:
-            func()
-            return
-
-        fut = asyncio.run_coroutine_threadsafe(self._call_sync(func), target)
-        if wait:
-            fut.result()
 
     async def _wait_resume(self) -> None:
         while True:

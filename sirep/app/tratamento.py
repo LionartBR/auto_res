@@ -8,6 +8,7 @@ import threading
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Literal, Sequence
 
+from sirep.app.async_loop import AsyncLoopMixin
 from sirep.domain.enums import PlanStatus
 from sirep.domain.models import TreatmentPlan
 from sirep.infra.db import SessionLocal
@@ -34,12 +35,12 @@ EstadoTratamento = Literal["ocioso", "aguardando", "processando", "pausado"]
 
 STAGES = list(TRATAMENTO_STAGE_DEFINITIONS.items())
 
-class TratamentoService:
+class TratamentoService(AsyncLoopMixin):
+    _ASYNC_LOOP_THREAD_NAME = "tratamento-loop"
+
     def __init__(self) -> None:
+        super().__init__()
         self._estado: EstadoTratamento = "ocioso"
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._loop_thread: Optional[threading.Thread] = None
-        self._loop_ready = threading.Event()
         self._worker_task: Optional[asyncio.Future] = None
         self._queue: Optional[asyncio.Queue[int]] = None
         self._queue_shadow: List[int] = []
@@ -49,60 +50,9 @@ class TratamentoService:
         self._processing_enabled = False
 
     # ---- infra auxiliar ----
-    @staticmethod
-    async def _call_sync(func) -> None:
-        func()
-
-    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop is not None:
-            self._loop = loop
-            if self._queue is None:
-                self._queue = asyncio.Queue()
-            return loop
-
-        existing = self._loop
-        if existing and existing.is_running():
-            if self._queue is None:
-                self._queue = asyncio.Queue()
-            return existing
-
-        loop = asyncio.new_event_loop()
-        self._loop = loop
-        self._queue = asyncio.Queue()
-        self._loop_ready.clear()
-
-        def runner() -> None:
-            asyncio.set_event_loop(loop)
-            self._loop_ready.set()
-            loop.run_forever()
-
-        self._loop_thread = threading.Thread(target=runner, name="tratamento-loop", daemon=True)
-        self._loop_thread.start()
-        self._loop_ready.wait()
-        return loop
-
-    def _run_on_loop(self, func, *, wait: bool = False, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
-        target = loop or self._loop
-        if target is None:
-            return
-
-        try:
-            running = asyncio.get_running_loop()
-        except RuntimeError:
-            running = None
-
-        if running is target:
-            func()
-            return
-
-        fut = asyncio.run_coroutine_threadsafe(self._call_sync(func), target)
-        if wait:
-            fut.result()
+    def _on_loop_ready(self, loop: asyncio.AbstractEventLoop) -> None:
+        if self._queue is None:
+            self._queue = asyncio.Queue()
 
     # ---- status público ----
     def estado(self) -> EstadoTratamento:

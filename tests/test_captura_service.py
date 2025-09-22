@@ -29,6 +29,8 @@ def test_pausar_pos_conclusao_permite_reiniciar(monkeypatch):
     monkeypatch.setattr(CapturaService, "_sleep_with_pause", _sleep_rapido, raising=False)
 
     service.iniciar()
+    assert service._loop is not None
+    assert service._loop_thread is not None
     _esperar_estado(service, "concluido")
     assert service.status().estado == "concluido"
 

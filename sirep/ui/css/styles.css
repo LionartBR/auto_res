@@ -50,11 +50,11 @@
     .logs-card{margin-top:16px;border-radius:14px;border:1px solid var(--line);overflow:hidden}
     .logs-header{
       display:flex;align-items:center;justify-content:space-between;
-      padding:10px 12px;background:#fff;cursor:pointer;user-select:none;
+      padding:10px 12px;background:#fff;user-select:none;
       border-bottom:1px solid var(--line)
     }
     .logs-header:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:2px}
-    .logs-title{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--text)}
+    .logs-title{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--text);cursor:pointer}
     .logs-title .caret{display:inline-block;transition:transform .18s ease;transform-origin:center}
     .logs-header[aria-expanded="true"] .caret{transform:rotate(90deg)}
 

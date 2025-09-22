@@ -455,3 +455,7 @@
 2025-09-22 15:01:19 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
 2025-09-22 15:01:25 INFO sirep.app.captura [captura.py:194]: captura iniciada
 2025-09-22 15:02:20 INFO sirep.app.captura [captura.py:309]: captura finalizada: concluido
+2025-09-22 15:20:47 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
+2025-09-22 15:20:47 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
+2025-09-22 15:21:37 INFO sirep.infra.logging [logging.py:45]: logging configurado em INFO (arquivo: logs\sirep.log)
+2025-09-22 15:21:37 WARNING sirep.app.api [api.py:42]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback

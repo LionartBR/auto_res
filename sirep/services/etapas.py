@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Iterable, List, Dict, Any
+from typing import List, Dict, Any
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.repositories import PlanRepository, EventRepository, JobRunRepository
@@ -7,7 +7,13 @@ from sirep.shared.idempotency import compute_hash
 from sirep.adapters.base import (
     FGEAdapter, SirepAdapter, CEFGDAdapter, CNSAdapter, PIGAdapter
 )
-from .base import unit_of_work, ServiceResult
+from .base import (
+    ServiceResult,
+    StepJobContext,
+    StepJobOutcome,
+    run_step_job,
+    unit_of_work,
+)
 
 
 class Etapa1Captura:
@@ -19,33 +25,33 @@ class Etapa1Captura:
         payload = {"step": Step.ETAPA_1}
         h = compute_hash(payload)
         hoje = datetime.utcnow().date()
-        with unit_of_work() as db:
-            jobs = JobRunRepository(db)
-            job = jobs.start(job_name=Step.ETAPA_1, step=Step.ETAPA_1, input_hash=h)
-            plans = PlanRepository(db); events = EventRepository(db)
-            linhas: List[Dict[str, Any]] = []
 
+        def _run(context: StepJobContext) -> StepJobOutcome:
+            linhas: List[Dict[str, Any]] = []
             for p in self.fge.listar_planos_presc_sem_974():
                 numero = p["numero_plano"]
                 tipo = p.get("tipo")
                 saldo = self.fge.obter_saldo_total(numero)
 
-                # Linha p/ carga SIREP
-                linhas.append({
-                    "CARTEIRA": numero,
-                    "GIFUG": "MZ",
-                    "SITUACAO_ATUAL": "P. RESC",
-                    "SITUACAO_ANTERIOR": "P. RESC",
-                    "DIAS_EM_ATRASO": "100",
-                    "TIPO": tipo,
-                    "DT_SITUACAO_ATUAL": hoje.isoformat(),
-                    "SALDO": float(saldo),
-                    "cmb_AJUSTE": "", "JUSTIFICATIVA": "", "MATRICULA": "",
-                    "DT_PARCELA_ATRASO": "", "REPRESENTACAO": "",
-                })
+                linhas.append(
+                    {
+                        "CARTEIRA": numero,
+                        "GIFUG": "MZ",
+                        "SITUACAO_ATUAL": "P. RESC",
+                        "SITUACAO_ANTERIOR": "P. RESC",
+                        "DIAS_EM_ATRASO": "100",
+                        "TIPO": tipo,
+                        "DT_SITUACAO_ATUAL": hoje.isoformat(),
+                        "SALDO": float(saldo),
+                        "cmb_AJUSTE": "",
+                        "JUSTIFICATIVA": "",
+                        "MATRICULA": "",
+                        "DT_PARCELA_ATRASO": "",
+                        "REPRESENTACAO": "",
+                    }
+                )
 
-                # Registro local
-                plan = plans.upsert(
+                plan = context.plans.upsert(
                     numero_plano=numero,
                     gifug="MZ",
                     situacao_atual="P. RESC",
@@ -60,20 +66,23 @@ class Etapa1Captura:
                     dt_parcela_atraso=None,
                     representacao="",
                     status=PlanStatus.PASSIVEL_RESC,
-                    # compat legada
                     tipo_parcelamento=tipo,
                     saldo_total=saldo,
                 )
-                events.log(plan.id, Step.ETAPA_1, "Capturado plano P. RESC")
+                context.events.log(plan.id, Step.ETAPA_1, "Capturado plano P. RESC")
 
-            # carga complementar no SIREP
             self.sirep.carga_complementar(linhas)
-            jobs.finish(
-                job.id,
-                status="FINISHED",
+            return StepJobOutcome(
+                data={"count": len(linhas)},
                 info_update={"summary": f"{len(linhas)} planos"},
             )
-            return {"job_id": job.id, "count": len(linhas)}
+
+        return run_step_job(
+            step=Step.ETAPA_1,
+            job_name=Step.ETAPA_1,
+            input_hash=h,
+            callback=_run,
+        )
 
 
 class Etapa2SituacaoEspecial:
@@ -83,27 +92,26 @@ class Etapa2SituacaoEspecial:
 
     def execute(self) -> ServiceResult:
         linhas = self.sirep.listar_sem_tratamento()
-        afetados = 0
-        with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(
-                job_name=Step.ETAPA_2,
-                step=Step.ETAPA_2,
-                input_hash=compute_hash(linhas),
-            )
-            for l in linhas:
-                numero = l["numero_plano"]
+
+        def _run(context: StepJobContext) -> StepJobOutcome:
+            afetados = 0
+            for linha in linhas:
+                numero = linha["numero_plano"]
                 if self.cefgd.plano_e_especial(numero):
                     self.sirep.atualizar_plano(numero, {"especial": True})
-                    p = plans.upsert(numero, status=PlanStatus.ESPECIAL)
-                    events.log(p.id, Step.ETAPA_2, "Plano classificado como especial")
+                    plan = context.plans.upsert(numero, status=PlanStatus.ESPECIAL)
+                    context.events.log(plan.id, Step.ETAPA_2, "Plano classificado como especial")
                     afetados += 1
-            jobs.finish(
-                job.id,
-                status="FINISHED",
+            return StepJobOutcome(
+                data={"afetados": afetados},
                 info_update={"summary": f"{afetados} especiais"},
             )
-            return {"job_id": job.id, "afetados": afetados}
+
+        return run_step_job(
+            step=Step.ETAPA_2,
+            input_hash=compute_hash(linhas),
+            callback=_run,
+        )
 
 
 class Etapa3LiquidacaoAnterior:
@@ -113,22 +121,28 @@ class Etapa3LiquidacaoAnterior:
 
     def execute(self) -> ServiceResult:
         linhas = self.sirep.listar_sem_tratamento()
-        with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(
-                job_name=Step.ETAPA_3,
-                step=Step.ETAPA_3,
-                input_hash=compute_hash(linhas),
-            )
-            for l in linhas:
-                numero = l["numero_plano"]
-                # Stub: marca alguns como liquidados
+
+        def _run(context: StepJobContext) -> StepJobOutcome:
+            for linha in linhas:
+                numero = linha["numero_plano"]
                 if numero.endswith("1"):
-                    self.sirep.atualizar_plano(numero, {"justificativa": "Liquidado anteriormente"})
-                    p = plans.upsert(numero, status=PlanStatus.LIQUIDADO)
-                    events.log(p.id, Step.ETAPA_3, "Liquidado/rescindido anteriormente")
-            jobs.finish(job.id, status="FINISHED")
-            return {"job_id": job.id}
+                    self.sirep.atualizar_plano(
+                        numero,
+                        {"justificativa": "Liquidado anteriormente"},
+                    )
+                    plan = context.plans.upsert(numero, status=PlanStatus.LIQUIDADO)
+                    context.events.log(
+                        plan.id,
+                        Step.ETAPA_3,
+                        "Liquidado/rescindido anteriormente",
+                    )
+            return StepJobOutcome()
+
+        return run_step_job(
+            step=Step.ETAPA_3,
+            input_hash=compute_hash(linhas),
+            callback=_run,
+        )
 
 
 class Etapa4GuiaGRDE:
@@ -138,21 +152,24 @@ class Etapa4GuiaGRDE:
 
     def execute(self) -> ServiceResult:
         linhas = self.sirep.listar_sem_tratamento()
-        with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            job = jobs.start(
-                job_name=Step.ETAPA_4,
-                step=Step.ETAPA_4,
-                input_hash=compute_hash(linhas),
-            )
-            for l in linhas:
-                numero = l["numero_plano"]
+
+        def _run(context: StepJobContext) -> StepJobOutcome:
+            for linha in linhas:
+                numero = linha["numero_plano"]
                 if self.fge.plano_tem_grde(numero):
-                    self.sirep.atualizar_plano(numero, {"grde": True, "justificativa": "Existe GRDE"})
-                    p = plans.upsert(numero, status=PlanStatus.NAO_RESCINDIDO)
-                    events.log(p.id, Step.ETAPA_4, "GRDE emitida")
-            jobs.finish(job.id, status="FINISHED")
-            return {"job_id": job.id}
+                    self.sirep.atualizar_plano(
+                        numero,
+                        {"grde": True, "justificativa": "Existe GRDE"},
+                    )
+                    plan = context.plans.upsert(numero, status=PlanStatus.NAO_RESCINDIDO)
+                    context.events.log(plan.id, Step.ETAPA_4, "GRDE emitida")
+            return StepJobOutcome()
+
+        return run_step_job(
+            step=Step.ETAPA_4,
+            input_hash=compute_hash(linhas),
+            callback=_run,
+        )
 
 
 class Etapa5AproveitamentoRecolh:
@@ -170,24 +187,37 @@ class Etapa7SubstituicaoE206:
         self.fge, self.sirep = fge, sirep
 
     def execute(self) -> ServiceResult:
-        with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
-            ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
-            job = jobs.start(
-                job_name=Step.ETAPA_7,
-                step=Step.ETAPA_7,
-                input_hash=compute_hash([p.numero_plano for p in ativos]),
+        ativos_cache: List[Any] = []
+
+        def _hash(context: StepJobContext) -> str:
+            nonlocal ativos_cache
+            ativos_cache = list(context.plans.list_by_status(PlanStatus.PASSIVEL_RESC))
+            return compute_hash([plan.numero_plano for plan in ativos_cache])
+
+        def _run(context: StepJobContext) -> StepJobOutcome:
+            nonlocal ativos_cache
+            ativos = ativos_cache or list(
+                context.plans.list_by_status(PlanStatus.PASSIVEL_RESC)
             )
-            for p in ativos:
-                confessados = self.fge.listar_debitos_confessados(p.numero_plano)
+            for plan in ativos:
+                confessados = self.fge.listar_debitos_confessados(plan.numero_plano)
                 houve_subst = any(
-                    self.fge.consultar_notificado(d["inscricao"], d["competencia"])
-                    for d in confessados
+                    self.fge.consultar_notificado(debito["inscricao"], debito["competencia"])
+                    for debito in confessados
                 )
-                msg = "Débito confessado substituído por notificação fiscal" if houve_subst else "Sem substituição"
-                events.log(p.id, Step.ETAPA_7, msg)
-            jobs.finish(job.id, status="FINISHED")
-            return {"job_id": job.id, "planos": len(ativos)}
+                mensagem = (
+                    "Débito confessado substituído por notificação fiscal"
+                    if houve_subst
+                    else "Sem substituição"
+                )
+                context.events.log(plan.id, Step.ETAPA_7, mensagem)
+            return StepJobOutcome(data={"planos": len(ativos)})
+
+        return run_step_job(
+            step=Step.ETAPA_7,
+            input_hash=_hash,
+            callback=_run,
+        )
 
 
 class Etapa8PIGPesquisa:

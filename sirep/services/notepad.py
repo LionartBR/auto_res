@@ -22,7 +22,7 @@ def build_notepad_txt(notes: Dict[str, Any]) -> str:
     add(f"RAZÃO SOCIAL: {g('RAZAO_SOCIAL')}")
     add("=================================================================================")
     add("E50H – PARCELAS EM ATRASO")
-    add("Parcela | Valor Parcela Atualizado | Data Vencimento")
+    add("Parcela Valor Parcela Atualizado Data Vencimento")
     atrasos = g("E50H_PARCELAS_ATRASO")
     if atrasos:
         add(atrasos)

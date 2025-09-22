@@ -11,9 +11,18 @@
     loading: false,
     tablePage: 1,
     searchTerm: '',
+    queueView: 'queue',
   };
 
   const TREATMENT_TABLE_PAGE_SIZE = 10;
+
+  function formatCount(value) {
+    const numeric = Number(value ?? 0);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return '0';
+    }
+    return numeric.toLocaleString('pt-BR');
+  }
 
   function setTratamentoEstado(estado) {
     if (!el.tratamentoEstado || !el.btnTratamentoIniciar || !el.btnTratamentoPausar || !el.btnTratamentoContinuar) {
@@ -88,6 +97,74 @@
       <td>${etapaAtual}</td>
     `;
     el.tbodyTratamentoFila.appendChild(tr);
+  }
+
+  function updateRescindidosResumo(data) {
+    const fila = Array.isArray(data && data.fila) ? data.fila.length : 0;
+    const planos = Array.isArray(data && data.planos) ? data.planos : [];
+
+    let rescindidos = 0;
+    let pendentes = 0;
+    for (const plano of planos) {
+      const statusKey = String(plano.status || '').toLowerCase();
+      if (statusKey === 'rescindido') {
+        rescindidos += 1;
+      } else if (statusKey !== 'descartado') {
+        pendentes += 1;
+      }
+    }
+
+    if (el.treatmentQueueCount) {
+      el.treatmentQueueCount.textContent = formatCount(fila);
+    }
+
+    if (el.treatmentRescindidosCount) {
+      el.treatmentRescindidosCount.textContent = formatCount(rescindidos);
+    }
+
+    if (el.treatmentRescindidosRemaining && el.treatmentRescindidosRemainingValue) {
+      if (pendentes > 0) {
+        el.treatmentRescindidosRemaining.hidden = false;
+        el.treatmentRescindidosRemainingValue.textContent = formatCount(pendentes);
+      } else {
+        el.treatmentRescindidosRemaining.hidden = true;
+        el.treatmentRescindidosRemainingValue.textContent = '0';
+      }
+    }
+  }
+
+  function setQueueView(view) {
+    if (!el.treatmentQueuePanel && !el.treatmentRescindidosPanel) {
+      return;
+    }
+
+    const nextView = view === 'rescindidos' ? 'rescindidos' : 'queue';
+    state.queueView = nextView;
+    const isQueue = nextView === 'queue';
+
+    if (el.treatmentQueueTabFila) {
+      el.treatmentQueueTabFila.classList.toggle('active', isQueue);
+      el.treatmentQueueTabFila.setAttribute('aria-selected', isQueue ? 'true' : 'false');
+      el.treatmentQueueTabFila.setAttribute('tabindex', isQueue ? '0' : '-1');
+    }
+
+    if (el.treatmentQueueTabRescindidos) {
+      el.treatmentQueueTabRescindidos.classList.toggle('active', !isQueue);
+      el.treatmentQueueTabRescindidos.setAttribute('aria-selected', !isQueue ? 'true' : 'false');
+      el.treatmentQueueTabRescindidos.setAttribute('tabindex', !isQueue ? '0' : '-1');
+    }
+
+    if (el.treatmentQueuePanel) {
+      el.treatmentQueuePanel.hidden = !isQueue;
+    }
+
+    if (el.treatmentRescindidosPanel) {
+      el.treatmentRescindidosPanel.hidden = isQueue;
+    }
+
+    if (!isQueue) {
+      updateRescindidosResumo(state.dados || { fila: [], planos: [] });
+    }
   }
 
   function filterTreatmentPlanos(planos) {
@@ -189,6 +266,7 @@
     state.dados = data;
     setTratamentoEstado(data.estado);
     renderTratamentoFila(data);
+    updateRescindidosResumo(data);
     renderTratamentoTabela();
     Logs.renderTreatmentLogs();
   }
@@ -372,6 +450,40 @@
       });
     }
 
+    const queueTabs = [
+      { element: el.treatmentQueueTabFila, view: 'queue' },
+      { element: el.treatmentQueueTabRescindidos, view: 'rescindidos' },
+    ].filter((item) => item.element);
+
+    if (queueTabs.length) {
+      const focusTab = (view) => {
+        const target =
+          view === 'queue' ? el.treatmentQueueTabFila : el.treatmentQueueTabRescindidos;
+        if (target && typeof target.focus === 'function') {
+          target.focus();
+        }
+      };
+
+      queueTabs.forEach(({ element, view }) => {
+        element.addEventListener('click', (event) => {
+          event.preventDefault();
+          setQueueView(view);
+        });
+
+        element.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setQueueView(view);
+          } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+            event.preventDefault();
+            const otherView = view === 'queue' ? 'rescindidos' : 'queue';
+            setQueueView(otherView);
+            focusTab(otherView);
+          }
+        });
+      });
+    }
+
     if (el.treatmentSearch) {
       el.treatmentSearch.addEventListener('input', (event) => {
         state.searchTerm = event.target.value || '';
@@ -433,6 +545,7 @@
   function init() {
     state.searchTerm = el.treatmentSearch ? el.treatmentSearch.value || '' : '';
     initEventListeners();
+    setQueueView(state.queueView);
   }
 
   global.SirepTratamento = {

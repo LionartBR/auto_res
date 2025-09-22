@@ -142,6 +142,15 @@
     .queue-row.rescindido{background:#ecfdf5}
     .queue-row.descartado{background:#fef2f2}
     .queue-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f3f4f6;color:#111;text-transform:uppercase}
+    .treatment-queue-tabs{margin:10px 0 4px}
+    .treatment-queue-panel{display:flex;flex-direction:column;gap:10px}
+    .treatment-rescindidos{border:1px solid var(--line);border-radius:12px;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}
+    .rescindidos-metrics{display:flex;flex-direction:column;gap:12px}
+    .rescindidos-metric{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+    .rescindidos-label{font-size:12px;font-weight:600;letter-spacing:.3px;color:var(--muted);text-transform:uppercase}
+    .rescindidos-value{font-size:24px;font-weight:700;color:#111}
+    .rescindidos-value.highlight{color:var(--accent)}
+    .rescindidos-hint{margin:0;font-size:12px}
     .treatment-empty{font-size:13px;color:var(--muted)}
     .treatment-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .treatment-card-header h3{margin:0}

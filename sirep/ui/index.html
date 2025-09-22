@@ -173,75 +173,45 @@
           <div class="treatment-column queue-column" aria-live="polite">
             <h3>PLANO EM EXECUÇÃO</h3>
             <div class="muted">Enquanto um plano estiver em tratamento os demais aguardam.</div>
-            <div
-              class="subtabs treatment-queue-tabs"
-              role="tablist"
-              aria-label="Opções de visualização do plano em execução"
-            >
-              <span
-                class="subtab active"
-                id="treatmentQueueTabFila"
-                role="tab"
-                data-view="queue"
-                aria-selected="true"
-                aria-controls="treatmentQueuePanel"
-                tabindex="0"
-              >Fila</span>
-              <span
-                class="subtab"
-                id="treatmentQueueTabRescindidos"
-                role="tab"
-                data-view="rescindidos"
-                aria-selected="false"
-                aria-controls="treatmentRescindidosPanel"
-                tabindex="-1"
-              >Rescindidos</span>
-            </div>
-            <div
-              id="treatmentQueuePanel"
-              class="treatment-queue-panel"
-              role="tabpanel"
-              aria-labelledby="treatmentQueueTabFila"
-            >
-              <div class="treatment-queue-scroll" role="region" aria-label="Plano em execução">
-                <table id="treatmentQueueTable" aria-label="Plano em execução">
-                  <thead>
-                    <tr>
-                      <th scope="col">PLANO</th>
-                      <th scope="col">CNPJ</th>
-                      <th scope="col">RAZÃO SOCIAL</th>
-                      <th scope="col">STATUS</th>
-                      <th scope="col">ETAPA ATUAL</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tbodyTratamentoFila"></tbody>
-                </table>
-                <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em execução no momento.</div>
-              </div>
-            </div>
-            <div
-              id="treatmentRescindidosPanel"
-              class="treatment-rescindidos"
-              role="tabpanel"
-              aria-labelledby="treatmentQueueTabRescindidos"
-              aria-live="polite"
-              hidden
-            >
-              <div class="rescindidos-metrics">
-                <div class="rescindidos-metric">
-                  <span class="rescindidos-label">Planos na fila</span>
-                  <span class="rescindidos-value" id="treatmentQueueCount">0</span>
-                </div>
-                <div class="rescindidos-metric">
-                  <span class="rescindidos-label">Rescindidos</span>
-                  <span class="rescindidos-value highlight" id="treatmentRescindidosCount">0</span>
-                </div>
-                <div class="rescindidos-metric" id="treatmentRescindidosRemaining" hidden>
-                  <span class="rescindidos-label">Falta</span>
-                  <span class="rescindidos-value" id="treatmentRescindidosRemainingValue">0</span>
+            <div class="treatment-queue-content">
+              <div id="treatmentQueuePanel" class="treatment-queue-panel">
+                <div class="treatment-queue-scroll" role="region" aria-label="Plano em execução">
+                  <table id="treatmentQueueTable" aria-label="Plano em execução">
+                    <thead>
+                      <tr>
+                        <th scope="col">PLANO</th>
+                        <th scope="col">CNPJ</th>
+                        <th scope="col">RAZÃO SOCIAL</th>
+                        <th scope="col">STATUS</th>
+                        <th scope="col">ETAPA ATUAL</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tbodyTratamentoFila"></tbody>
+                  </table>
+                  <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em execução no momento.</div>
                 </div>
               </div>
-              <p class="muted rescindidos-hint">Os números são atualizados automaticamente conforme o tratamento avança.</p>
+              <aside
+                id="treatmentRescindidosPanel"
+                class="treatment-rescindidos"
+                aria-live="polite"
+              >
+                <div class="rescindidos-metrics">
+                  <div class="rescindidos-metric queue">
+                    <span class="rescindidos-label">Planos na fila</span>
+                    <span class="rescindidos-value" id="treatmentQueueCount">0</span>
+                  </div>
+                  <div class="rescindidos-metric rescindidos">
+                    <span class="rescindidos-label">Rescindidos</span>
+                    <span class="rescindidos-value" id="treatmentRescindidosCount">0</span>
+                  </div>
+                  <div class="rescindidos-metric remaining" id="treatmentRescindidosRemaining" hidden>
+                    <span class="rescindidos-label">Falta</span>
+                    <span class="rescindidos-value" id="treatmentRescindidosRemainingValue">0</span>
+                  </div>
+                </div>
+                <p class="muted rescindidos-hint">Os números são atualizados automaticamente conforme o tratamento avança.</p>
+              </aside>
             </div>
           </div>
 

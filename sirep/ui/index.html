@@ -162,7 +162,6 @@
     .stage.cancelado{border-left-color:#b91c1c;background:#fef2f2}
     .stage.cancelado .stage-status-label{color:#b91c1c}
     .stage.pendente{border-left-color:#d1d5db}
-    .treatment-downloads{display:flex;gap:10px;align-items:center;margin-top:6px}
     .treatment-logs{margin-top:20px}
     .treatment-logs .logs-actions{flex-wrap:wrap;justify-content:flex-end}
     .btn-link{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
@@ -352,9 +351,6 @@
             <h3>Plano em execução</h3>
             <div id="tratamentoAtualResumo" class="treatment-summary">Selecione ou aguarde um plano iniciar.</div>
             <ul id="listaEtapas" class="stage-list"></ul>
-            <div class="treatment-downloads">
-              <button id="btnDownloadNotepad" class="btn-link" disabled>Baixar bloco de notas (.txt)</button>
-            </div>
           </div>
         </div>
         <div id="treatmentLogsCard" class="treatment-logs card logs-card" aria-live="polite">
@@ -560,7 +556,7 @@ const el={
   btnTratamentoIniciar:$("#btnTratamentoIniciar"), btnTratamentoPausar:$("#btnTratamentoPausar"),
   btnTratamentoContinuar:$("#btnTratamentoContinuar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
   listaEtapas:$("#listaEtapas"), tratamentoResumo:$("#tratamentoAtualResumo"),
-  btnDownloadNotepad:$("#btnDownloadNotepad"), tratamentoEmpty:$("#tratamentoEmpty"),
+  tratamentoEmpty:$("#tratamentoEmpty"),
   tbodyTratamentoLogs:$("#tbodyTratamentoLogs"), inputRescindidosData:$("#inputRescindidosData"),
   btnDownloadRescindidos:$("#btnDownloadRescindidos")
 };
@@ -1045,12 +1041,9 @@ function formatStageDisplayStatus(status){
 }
 
 function renderTratamentoResumo(plan){
-  if(!el.tratamentoResumo||!el.btnDownloadNotepad) return;
+  if(!el.tratamentoResumo) return;
   if(!plan){
     el.tratamentoResumo.textContent="Selecione ou aguarde um plano iniciar.";
-    el.btnDownloadNotepad.disabled=true;
-    el.btnDownloadNotepad.dataset.planId="";
-    el.btnDownloadNotepad.dataset.numero="";
     return;
   }
   const rescisao = plan.rescisao_data ? formatDateBR(plan.rescisao_data) : "—";
@@ -1063,9 +1056,6 @@ function renderTratamentoResumo(plan){
       <div><strong>Status:</strong> ${formatTreatmentStatus(plan.status)}</div>
       <div><strong>Data da rescisão:</strong> ${rescisao}</div>
     </div>`;
-  el.btnDownloadNotepad.disabled=false;
-  el.btnDownloadNotepad.dataset.planId=plan.id;
-  el.btnDownloadNotepad.dataset.numero=plan.numero_plano;
 }
 
 function renderTratamentoEtapas(plan){
@@ -1426,15 +1416,6 @@ if(el.btnTratamentoContinuar){
   el.btnTratamentoContinuar.addEventListener("click",event=>{
     event.preventDefault();
     continuarTratamento();
-  });
-}
-
-if(el.btnDownloadNotepad){
-  el.btnDownloadNotepad.addEventListener("click",event=>{
-    event.preventDefault();
-    const id=Number(el.btnDownloadNotepad.dataset.planId||"0");
-    const numero=el.btnDownloadNotepad.dataset.numero||"";
-    if(id) downloadTratamentoNotepad(id,numero);
   });
 }
 

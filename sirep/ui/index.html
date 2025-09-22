@@ -147,21 +147,7 @@
     .queue-row.rescindido{background:#ecfdf5}
     .queue-row.descartado{background:#fef2f2}
     .queue-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#f3f4f6;color:#111;text-transform:uppercase}
-    .treatment-summary{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#111}
-    .treatment-summary strong{font-weight:800}
     .treatment-empty{font-size:13px;color:var(--muted)}
-    .stage-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-    .stage{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:10px 12px;background:#f9fafb}
-    .stage-header{display:flex;justify-content:space-between;gap:10px;font-weight:700;font-size:13px;margin-bottom:4px}
-    .stage-status-label{font-weight:800;font-size:11px;text-transform:uppercase;color:var(--muted)}
-    .stage-dates{font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
-    .stage.processando{border-left-color:#F7A600;background:#fff7ed}
-    .stage.processando .stage-status-label{color:#b45309}
-    .stage.concluido{border-left-color:#16a34a;background:#ecfdf5}
-    .stage.concluido .stage-status-label{color:#047857}
-    .stage.cancelado{border-left-color:#b91c1c;background:#fef2f2}
-    .stage.cancelado .stage-status-label{color:#b91c1c}
-    .stage.pendente{border-left-color:#d1d5db}
     .treatment-logs{margin-top:20px}
     .treatment-logs .logs-actions{flex-wrap:wrap;justify-content:flex-end}
     .btn-link{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
@@ -347,11 +333,6 @@
               <div id="tratamentoEmpty" class="treatment-empty" hidden>Nenhum plano em tratamento. Migre planos para iniciar.</div>
             </div>
           </div>
-          <div class="treatment-column">
-            <h3>Plano em execução</h3>
-            <div id="tratamentoAtualResumo" class="treatment-summary">Selecione ou aguarde um plano iniciar.</div>
-            <ul id="listaEtapas" class="stage-list"></ul>
-          </div>
         </div>
         <div id="treatmentLogsCard" class="treatment-logs card logs-card" aria-live="polite">
           <div
@@ -525,15 +506,6 @@ function formatDateTime(value,options){
     return date.toLocaleString("pt-BR",baseOptions);
   }
 }
-const TREATMENT_STAGE_NAMES={
-  1:"Etapa 1 – Aproveitamento de Recolhimentos",
-  2:"Etapa 2 – Substituição – Confissão x Notificação Fiscal",
-  3:"Etapa 3 – Pesquisa de Guias no SFG (PIG)",
-  4:"Etapa 4 – Lançamento de Guias no FGE (PIG)",
-  5:"Etapa 5 – Situação do Plano",
-  6:"Etapa 6 – Rescisão",
-  7:"Etapa 7 – Comunicação da Rescisão"
-};
 const el={
   btnIniciar:$("#btnIniciar"), btnPausar:$("#btnPausar"), btnContinuar:$("#btnContinuar"),
   barTotal:$("#barTotal"), lblTotal:$("#lblTotal"), ultima:$("#ultimaAtualizacao"),
@@ -555,7 +527,6 @@ const el={
   tratamentoEstado:$("#tratamentoEstado"), btnTratamentoSeed:$("#btnTratamentoSeed"),
   btnTratamentoIniciar:$("#btnTratamentoIniciar"), btnTratamentoPausar:$("#btnTratamentoPausar"),
   btnTratamentoContinuar:$("#btnTratamentoContinuar"), tbodyTratamentoFila:$("#tbodyTratamentoFila"),
-  listaEtapas:$("#listaEtapas"), tratamentoResumo:$("#tratamentoAtualResumo"),
   tratamentoEmpty:$("#tratamentoEmpty"),
   tbodyTratamentoLogs:$("#tbodyTratamentoLogs"), inputRescindidosData:$("#inputRescindidosData"),
   btnDownloadRescindidos:$("#btnDownloadRescindidos")
@@ -1029,58 +1000,6 @@ function formatTreatmentStatus(status){
   return map[key]||status||"";
 }
 
-function formatStageDisplayStatus(status){
-  const map={
-    pendente:"Pendente",
-    processando:"Em andamento",
-    concluido:"Concluída",
-    cancelado:"Cancelada"
-  };
-  const key=String(status||"").toLowerCase();
-  return map[key]||status||"";
-}
-
-function renderTratamentoResumo(plan){
-  if(!el.tratamentoResumo) return;
-  if(!plan){
-    el.tratamentoResumo.textContent="Selecione ou aguarde um plano iniciar.";
-    return;
-  }
-  const rescisao = plan.rescisao_data ? formatDateBR(plan.rescisao_data) : "—";
-  el.tratamentoResumo.innerHTML=`
-    <div class="treatment-summary">
-      <div><strong>Plano:</strong> ${plan.numero_plano}</div>
-      <div><strong>Razão social:</strong> ${plan.razao_social}</div>
-      <div><strong>CNPJs:</strong> ${Array.isArray(plan.cnpjs)?plan.cnpjs.join(", "):""}</div>
-      <div><strong>Bases:</strong> ${Array.isArray(plan.bases)?plan.bases.join(", "):""}</div>
-      <div><strong>Status:</strong> ${formatTreatmentStatus(plan.status)}</div>
-      <div><strong>Data da rescisão:</strong> ${rescisao}</div>
-    </div>`;
-}
-
-function renderTratamentoEtapas(plan){
-  if(!el.listaEtapas) return;
-  el.listaEtapas.innerHTML="";
-  if(!plan||!Array.isArray(plan.etapas)) return;
-  plan.etapas.forEach(stage=>{
-    const li=document.createElement("li");
-    const status=(stage.status||"").toLowerCase();
-    li.className=`stage ${status}`;
-    const nome=stage.nome||TREATMENT_STAGE_NAMES[stage.id]||`Etapa ${stage.id}`;
-    const inicio=stage.iniciado_em?formatDateTime(stage.iniciado_em,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
-    const fim=stage.finalizado_em?formatDateTime(stage.finalizado_em,{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
-    li.innerHTML=`
-      <div class="stage-header">
-        <span>${stage.id}. ${nome}</span>
-        <span class="stage-status-label">${formatStageDisplayStatus(status)}</span>
-      </div>
-      <div class="stage-info">${stage.mensagem||""}</div>
-      <div class="stage-dates"><span>Início: ${inicio}</span><span>Término: ${fim}</span></div>
-    `;
-    el.listaEtapas.appendChild(li);
-  });
-}
-
 function renderTratamentoFila(data){
   if(!el.tbodyTratamentoFila) return;
   el.tbodyTratamentoFila.innerHTML="";
@@ -1167,11 +1086,6 @@ function renderTratamentoLogs(){
 function atualizarTratamentoUI(data){
   tratamentoDados=data;
   setTratamentoEstado(data.estado);
-  const planos=Array.isArray(data.planos)?data.planos:[];
-  const atualId=data.atual;
-  const planoAtual=planos.find(p=>p.id===atualId)||planos.find(p=>p.status==="processando")||null;
-  renderTratamentoResumo(planoAtual);
-  renderTratamentoEtapas(planoAtual);
   renderTratamentoFila(data);
   renderTratamentoLogs();
 }

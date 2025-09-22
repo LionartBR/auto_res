@@ -41,5 +41,3 @@ def setup_logging(level: str | None = None) -> None:
     # Integra loggers conhecidos
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "asyncio"):
         logging.getLogger(name).setLevel(level)
-
-    logging.getLogger(__name__).info("logging configurado em %s (arquivo: %s)", level, LOG_PATH)

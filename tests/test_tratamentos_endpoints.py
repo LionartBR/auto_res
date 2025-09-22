@@ -1,20 +1,27 @@
+import asyncio
+import time
 import pytest
 from fastapi.testclient import TestClient
 from datetime import date
 
 from sirep.app.api import app
+from sirep.app.tratamento import TratamentoService
 from sirep.domain.enums import PlanStatus
 from sirep.domain.models import Plan, TreatmentPlan
 from sirep.infra.db import SessionLocal, init_db
 
 
-@pytest.fixture
-def client():
+def reset_db() -> None:
     init_db()
     with SessionLocal() as db:
         db.query(TreatmentPlan).delete()
         db.query(Plan).delete()
         db.commit()
+
+
+@pytest.fixture
+def client():
+    reset_db()
     with TestClient(app) as test_client:
         yield test_client
 
@@ -110,3 +117,107 @@ def test_rescindidos_txt_endpoint(client: TestClient):
     assert "12345678000190" in body
     assert "98765432000109" in body
     assert response.headers.get("content-disposition", "").startswith("attachment")
+
+
+def test_tratamento_continuar_apos_restaurar(monkeypatch):
+    reset_db()
+
+    async def instant_sleep(self, duration: float) -> None:  # pragma: no cover - patched behaviour
+        await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(TratamentoService, "_sleep_with_pause", instant_sleep, raising=False)
+
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="REST001",
+            situacao_atual="P. RESC",
+            saldo=1500.0,
+            status=PlanStatus.PASSIVEL_RESC,
+            razao_social="EMPRESA RESTAURA LTDA",
+            tipo="ADM",
+        )
+        db.add(plano)
+        db.commit()
+
+    service = TratamentoService()
+    created = service.migrar_planos()
+    assert created
+    service.iniciar()
+    time.sleep(0.1)
+    service.pausar()
+    time.sleep(0.1)
+
+    novo_service = TratamentoService()
+    status = novo_service.status()
+    assert status["estado"] == "pausado"
+    assert status["planos"]
+
+    novo_service.continuar()
+    deadline = time.time() + 2
+    while time.time() < deadline and novo_service.estado() != "ocioso":
+        time.sleep(0.05)
+
+    assert novo_service.estado() == "ocioso"
+    with SessionLocal() as db:
+        tratamento = db.get(TreatmentPlan, created[0])
+        assert tratamento is not None
+        assert tratamento.status in {"rescindido", "descartado"}
+
+
+def test_migrar_nao_inicia_sem_iniciar(monkeypatch):
+    reset_db()
+
+    async def instant_sleep(self, duration: float) -> None:  # pragma: no cover - patched behaviour
+        await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(TratamentoService, "_sleep_with_pause", instant_sleep, raising=False)
+
+    with SessionLocal() as db:
+        plano1 = Plan(
+            numero_plano="AUTO001",
+            situacao_atual="P. RESC",
+            saldo=2000.0,
+            status=PlanStatus.PASSIVEL_RESC,
+            razao_social="EMPRESA AUTO 1",
+            tipo="ADM",
+        )
+        db.add(plano1)
+        db.commit()
+
+    service = TratamentoService()
+    first_ids = service.migrar_planos()
+    assert first_ids
+    service.iniciar()
+
+    deadline = time.time() + 2
+    while time.time() < deadline and service.estado() != "ocioso":
+        time.sleep(0.05)
+
+    assert service.estado() == "ocioso"
+
+    with SessionLocal() as db:
+        plano2 = Plan(
+            numero_plano="AUTO002",
+            situacao_atual="P. RESC",
+            saldo=3200.0,
+            status=PlanStatus.PASSIVEL_RESC,
+            razao_social="EMPRESA AUTO 2",
+            tipo="ADM",
+        )
+        db.add(plano2)
+        db.commit()
+
+    second_ids = service.migrar_planos()
+    assert second_ids
+
+    time.sleep(0.2)
+    assert service.estado() in {"ocioso", "aguardando", "pausado"}
+
+    with SessionLocal() as db:
+        novos = (
+            db.query(TreatmentPlan)
+            .filter(TreatmentPlan.id.in_(second_ids))
+            .all()
+        )
+        assert novos
+        assert all(trat.status == "pendente" for trat in novos)

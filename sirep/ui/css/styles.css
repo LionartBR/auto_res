@@ -133,8 +133,8 @@
     #treatmentQueueTable th{font-size:12px;color:#4b5563;font-weight:700;letter-spacing:.3px}
     #treatmentQueueTable tbody tr:last-child td{border-bottom:0}
     .queue-column{height:auto}
-    .treatment-queue-content{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap}
-    .treatment-queue-content .treatment-queue-panel{flex:1 1 420px;min-width:0}
+    .treatment-queue-content{display:flex;gap:24px;align-items:stretch;flex-wrap:nowrap}
+    .treatment-queue-content .treatment-queue-panel{flex:1 1 420px;min-width:0;padding-right:20px;border-right:1px solid var(--line);margin-right:4px}
     .treatment-queue-content .treatment-rescindidos{flex:1 1 220px;max-width:260px}
     .queue-column .treatment-queue-scroll{flex:0 1 auto;max-height:240px;overflow:auto;padding-right:4px;scrollbar-width:thin;scrollbar-color:rgba(17,24,39,.35) transparent}
     .queue-column .treatment-queue-scroll table{margin-bottom:0}
@@ -150,9 +150,9 @@
     .treatment-rescindidos{border:1px solid var(--line);border-radius:12px;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}
     .rescindidos-metrics{display:flex;flex-direction:column;gap:12px}
     .rescindidos-metric{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
-    .rescindidos-metric.queue .rescindidos-label,.rescindidos-metric.queue .rescindidos-value{color:#b45309}
-    .rescindidos-metric.rescindidos .rescindidos-label,.rescindidos-metric.rescindidos .rescindidos-value{color:#047857}
-    .rescindidos-metric.remaining .rescindidos-label,.rescindidos-metric.remaining .rescindidos-value{color:#b91c1c}
+    .rescindidos-metric.queue .rescindidos-label,.rescindidos-metric.queue .rescindidos-value{color:#facc15}
+    .rescindidos-metric.rescindidos .rescindidos-label,.rescindidos-metric.rescindidos .rescindidos-value{color:#16a34a}
+    .rescindidos-metric.remaining .rescindidos-label,.rescindidos-metric.remaining .rescindidos-value{color:#ef4444}
     .rescindidos-label{font-size:12px;font-weight:600;letter-spacing:.3px;color:var(--muted);text-transform:uppercase}
     .rescindidos-value{font-size:24px;font-weight:700;color:#111}
     .rescindidos-value.highlight{color:var(--accent)}
@@ -177,3 +177,9 @@
     .treatment-logs .logs-actions{flex-wrap:wrap;justify-content:flex-end}
     .btn-link{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer}
     .btn-link:hover{background:rgba(16,140,188,.08)}
+
+    @media (max-width:900px){
+      .treatment-queue-content{flex-wrap:wrap}
+      .treatment-queue-content .treatment-queue-panel{padding-right:0;border-right:0;margin-right:0;padding-bottom:16px;border-bottom:1px solid var(--line)}
+      .treatment-queue-content .treatment-rescindidos{max-width:none;margin-top:0;border-top:1px solid var(--line);padding-top:16px}
+    }

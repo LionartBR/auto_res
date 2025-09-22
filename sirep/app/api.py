@@ -234,19 +234,20 @@ async def captura_continuar():
 @app.get("/captura/status")
 async def captura_status():
     st = captura.status()
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         ocorrencias_total = db.query(DiscardedPlan).count()
         total = db.query(Plan).count()
-        total_passiveis = db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
-    finally:
-        db.close()
+        total_passiveis = (
+            db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
+        )
+    progresso_total = captura.progresso_percentual()
     return {
         "estado": st.estado,
         "processados": st.processados,
         "novos": st.novos,
         "falhas": st.falhas,
-        "progresso_total": round((st.processados / 50) * 100, 1) if 50 else 0,
+        "progresso_total": progresso_total,
+        "total_alvos": captura.total_alvos,
         "em_progresso": [
             {"numero_plano": p.numero_plano, "progresso": p.progresso, "etapas": p.etapas}
             for p in st.em_progresso.values()
@@ -273,8 +274,10 @@ async def captura_status():
 
 @app.get("/captura/planos")
 def captura_planos(pagina: int = 1, tamanho: int = 10):
-    db = SessionLocal()
-    try:
+    pagina = max(1, pagina)
+    tamanho = max(1, min(tamanho, 100))
+
+    with SessionLocal() as db:
         q = db.query(Plan).order_by(Plan.saldo.desc().nullslast())
         total = q.count()
         raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
@@ -282,15 +285,17 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
             PlanOut.model_validate(plan).model_dump(mode="json")
             for plan in raw_items
         ]
-        total_passiveis = db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
+        total_passiveis = (
+            db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
+        )
         return {"items": items, "total": total, "total_passiveis": total_passiveis}
-    finally:
-        db.close()
 
 @app.get("/captura/ocorrencias")
 def captura_ocorrencias(pagina: int = 1, tamanho: int = 10, situacao: str | None = None):
-    db = SessionLocal()
-    try:
+    pagina = max(1, pagina)
+    tamanho = max(1, min(tamanho, 100))
+
+    with SessionLocal() as db:
         q = db.query(DiscardedPlan).order_by(
             DiscardedPlan.saldo.desc().nullslast(),
             DiscardedPlan.id.desc(),
@@ -306,8 +311,6 @@ def captura_ocorrencias(pagina: int = 1, tamanho: int = 10, situacao: str | None
             for plan in raw_items
         ]
         return {"items": items, "total": total}
-    finally:
-        db.close()
 
 # ---- Tratamentos ----
 
@@ -349,8 +352,7 @@ def tratamentos_status():
 
 @app.get("/tratamentos/{treatment_id}/notepad")
 def tratamentos_notepad(treatment_id: int):
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         repo = TreatmentPlanRepository(db)
         plano = repo.get(treatment_id)
         if plano is None:
@@ -360,14 +362,11 @@ def tratamentos_notepad(treatment_id: int):
         response = PlainTextResponse(content, media_type="text/plain; charset=utf-8")
         response.headers["Content-Disposition"] = f"attachment; filename=\"{filename}\""
         return response
-    finally:
-        db.close()
 
 
 @app.get("/tratamentos/rescindidos-txt")
 def tratamentos_rescindidos_txt(data: date):
-    db = SessionLocal()
-    try:
+    with SessionLocal() as db:
         repo = TreatmentPlanRepository(db)
         planos = repo.list_rescindidos_por_data(data)
         cnpjs: list[str] = []
@@ -380,8 +379,6 @@ def tratamentos_rescindidos_txt(data: date):
         response = PlainTextResponse(conteudo, media_type="text/plain; charset=utf-8")
         response.headers["Content-Disposition"] = 'attachment; filename="Rescindidos_CNPJ.txt"'
         return response
-    finally:
-        db.close()
 
 
 @app.get("/logs")
@@ -444,9 +441,3 @@ def exportar_logs(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
-
-
-# ---- Debug endpoint (força erro p/ validar logger) ----
-@app.get("/debug/boom")
-def boom():
-    raise RuntimeError("boom de teste")

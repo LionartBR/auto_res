@@ -74,6 +74,21 @@ class CapturaService:
         self._ensure_history_loaded()
         return self._status
 
+    @property
+    def total_alvos(self) -> int:
+        """Quantidade total de planos simulados por execução."""
+
+        return self._total_alvos
+
+    def progresso_percentual(self) -> float:
+        """Percentual de progresso considerando o total configurado."""
+
+        total = self._total_alvos
+        if total <= 0:
+            return 0.0
+        concluido = min(self._status.processados, total)
+        return round((concluido / total) * 100, 1)
+
     def reset_estado(self) -> None:
         self._status = CapturaStatus()
         self._loop_task = None

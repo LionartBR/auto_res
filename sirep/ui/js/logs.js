@@ -167,16 +167,28 @@
       return;
     }
 
-    const toggle = (event) => {
+    const handleClick = (event) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      const title = event.target.closest('.logs-title');
+      if (!title || !el.logsHeader.contains(title)) {
+        return;
+      }
+
       event.preventDefault();
       setLogsOpen(!state.logsOpen);
     };
-    el.logsHeader.addEventListener('click', toggle);
-    el.logsHeader.addEventListener('keydown', (event) => {
+
+    const handleKeydown = (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
-        toggle(event);
+        event.preventDefault();
+        setLogsOpen(!state.logsOpen);
       }
-    });
+    };
+
+    el.logsHeader.addEventListener('click', handleClick);
+    el.logsHeader.addEventListener('keydown', handleKeydown);
   }
 
   function attachTreatmentLogsToggle() {
@@ -184,17 +196,28 @@
       return;
     }
 
-    const toggle = (event) => {
+    const handleClick = (event) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      const title = event.target.closest('.logs-title');
+      if (!title || !el.treatmentLogsHeader.contains(title)) {
+        return;
+      }
+
       event.preventDefault();
       setTreatmentLogsOpen(!state.treatmentLogsOpen);
     };
 
-    el.treatmentLogsHeader.addEventListener('click', toggle);
-    el.treatmentLogsHeader.addEventListener('keydown', (event) => {
+    const handleKeydown = (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
-        toggle(event);
+        event.preventDefault();
+        setTreatmentLogsOpen(!state.treatmentLogsOpen);
       }
-    });
+    };
+
+    el.treatmentLogsHeader.addEventListener('click', handleClick);
+    el.treatmentLogsHeader.addEventListener('keydown', handleKeydown);
   }
 
   function resolveInterval(fromInput, toInput) {

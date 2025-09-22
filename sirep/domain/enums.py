@@ -1,4 +1,4 @@
-from enum import StrEnum, auto
+from enum import StrEnum
 
 class PlanStatus(StrEnum):
     NOVO = "NOVO"

@@ -365,10 +365,16 @@ def tratamentos_notepad(treatment_id: int):
 
 
 @app.get("/tratamentos/rescindidos-txt")
-def tratamentos_rescindidos_txt(data: date):
+def tratamentos_rescindidos_txt(
+    from_: date = Query(..., alias="from"),
+    to: date = Query(..., alias="to"),
+):
+    if from_ > to:
+        raise HTTPException(status_code=400, detail="intervalo inválido")
+
     with SessionLocal() as db:
         repo = TreatmentPlanRepository(db)
-        planos = repo.list_rescindidos_por_data(data)
+        planos = repo.list_rescindidos_por_periodo(from_, to)
         cnpjs: list[str] = []
         for plano in planos:
             for cnpj in plano.cnpjs:

@@ -122,10 +122,15 @@ class TreatmentPlanRepository:
     def remove(self, plan: TreatmentPlan) -> None:
         self.db.delete(plan)
 
-    def list_rescindidos_por_data(self, data: date) -> List[TreatmentPlan]:
-        stmt = select(TreatmentPlan).where(
-            TreatmentPlan.status == "rescindido",
-            TreatmentPlan.rescisao_data == data,
+    def list_rescindidos_por_periodo(self, inicio: date, fim: date) -> List[TreatmentPlan]:
+        stmt = (
+            select(TreatmentPlan)
+            .where(
+                TreatmentPlan.status == "rescindido",
+                TreatmentPlan.rescisao_data >= inicio,
+                TreatmentPlan.rescisao_data <= fim,
+            )
+            .order_by(TreatmentPlan.rescisao_data.asc(), TreatmentPlan.id.asc())
         )
         return list(self.db.scalars(stmt))
 

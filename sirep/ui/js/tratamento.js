@@ -306,17 +306,23 @@
   }
 
   async function downloadRescindidos() {
-    if (!el.inputRescindidosData || !el.btnDownloadRescindidos) {
+    if (!el.inputRescindidosFrom || !el.inputRescindidosTo || !el.btnDownloadRescindidos) {
       return;
     }
-    const value = el.inputRescindidosData.value;
-    if (!value) {
-      alert('Informe a data para gerar o arquivo de rescindidos.');
+    const fromValue = el.inputRescindidosFrom.value;
+    const toValue = el.inputRescindidosTo.value;
+    if (!fromValue || !toValue) {
+      alert('Informe o período completo para gerar o arquivo de rescindidos.');
+      return;
+    }
+    if (fromValue > toValue) {
+      alert('A data inicial não pode ser maior que a data final.');
       return;
     }
     el.btnDownloadRescindidos.disabled = true;
     try {
-      const response = await fetch(`/tratamentos/rescindidos-txt?data=${value}`);
+      const params = new URLSearchParams({ from: fromValue, to: toValue });
+      const response = await fetch(`/tratamentos/rescindidos-txt?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

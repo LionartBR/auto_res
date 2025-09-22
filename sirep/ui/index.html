@@ -154,16 +154,20 @@
 
       <section id="tab-tratamento" style="display:none">
         <div class="treatment-controls">
-          <button id="btnTratamentoSeed">Migrar planos</button>
-          <button id="btnTratamentoIniciar" class="primary">Iniciar</button>
-          <button id="btnTratamentoPausar">Pausar</button>
-          <button id="btnTratamentoContinuar" disabled>Continuar</button>
-          <span class="muted">Estado: <span id="tratamentoEstado">Ocioso</span></span>
-        </div>
-        <div class="treatment-actions">
-          <label class="muted" for="inputRescindidosData">Data para exportação:</label>
-          <input type="date" id="inputRescindidosData" aria-label="Data de rescisão" />
-          <button id="btnDownloadRescindidos" class="btn-link">Exportar Rescindidos_CNPJ.txt</button>
+          <div class="treatment-buttons">
+            <button id="btnTratamentoSeed">Migrar planos</button>
+            <button id="btnTratamentoIniciar" class="primary">Iniciar</button>
+            <button id="btnTratamentoPausar">Pausar</button>
+            <button id="btnTratamentoContinuar" disabled>Continuar</button>
+            <span class="muted">Estado: <span id="tratamentoEstado">Ocioso</span></span>
+          </div>
+          <div class="treatment-export" role="group" aria-label="Exportar rescindidos por período">
+            <label class="muted" for="inputRescindidosFrom">De:</label>
+            <input type="date" id="inputRescindidosFrom" aria-label="Data inicial de rescisão" />
+            <label class="muted" for="inputRescindidosTo">Até:</label>
+            <input type="date" id="inputRescindidosTo" aria-label="Data final de rescisão" />
+            <button id="btnDownloadRescindidos" class="btn-link">Exportar Rescindidos_CNPJ.txt</button>
+          </div>
         </div>
         <div class="treatment-grid">
           <div class="treatment-column queue-column" aria-live="polite">

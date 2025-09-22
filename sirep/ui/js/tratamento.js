@@ -138,33 +138,29 @@
       return;
     }
 
-    const nextView = view === 'rescindidos' ? 'rescindidos' : 'queue';
-    state.queueView = nextView;
-    const isQueue = nextView === 'queue';
+    state.queueView = 'queue';
 
     if (el.treatmentQueueTabFila) {
-      el.treatmentQueueTabFila.classList.toggle('active', isQueue);
-      el.treatmentQueueTabFila.setAttribute('aria-selected', isQueue ? 'true' : 'false');
-      el.treatmentQueueTabFila.setAttribute('tabindex', isQueue ? '0' : '-1');
+      el.treatmentQueueTabFila.classList.add('active');
+      el.treatmentQueueTabFila.setAttribute('aria-selected', 'true');
+      el.treatmentQueueTabFila.setAttribute('tabindex', '0');
     }
 
     if (el.treatmentQueueTabRescindidos) {
-      el.treatmentQueueTabRescindidos.classList.toggle('active', !isQueue);
-      el.treatmentQueueTabRescindidos.setAttribute('aria-selected', !isQueue ? 'true' : 'false');
-      el.treatmentQueueTabRescindidos.setAttribute('tabindex', !isQueue ? '0' : '-1');
+      el.treatmentQueueTabRescindidos.classList.remove('active');
+      el.treatmentQueueTabRescindidos.setAttribute('aria-selected', 'false');
+      el.treatmentQueueTabRescindidos.setAttribute('tabindex', '-1');
     }
 
     if (el.treatmentQueuePanel) {
-      el.treatmentQueuePanel.hidden = !isQueue;
+      el.treatmentQueuePanel.hidden = false;
     }
 
     if (el.treatmentRescindidosPanel) {
-      el.treatmentRescindidosPanel.hidden = isQueue;
+      el.treatmentRescindidosPanel.hidden = false;
     }
 
-    if (!isQueue) {
-      updateRescindidosResumo(state.dados || { fila: [], planos: [] });
-    }
+    updateRescindidosResumo(state.dados || { fila: [], planos: [] });
   }
 
   function filterTreatmentPlanos(planos) {

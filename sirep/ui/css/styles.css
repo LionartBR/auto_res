@@ -145,7 +145,16 @@
     .treatment-empty{font-size:13px;color:var(--muted)}
     .treatment-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .treatment-card-header h3{margin:0}
-    .table-search-input{min-width:220px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font:inherit}
+    .table-search-input{
+      min-width:260px;
+      flex:1 1 420px;
+      width:100%;
+      max-width:560px;
+      padding:8px 12px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      font:inherit
+    }
     .table-search-input:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:1px}
     .treatment-table-scroll{overflow:auto}
     .treatment-table-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}

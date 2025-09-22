@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Tuple
 
 # Pastas a ignorar, em qualquer nível
-IGNORE_DIRS = {".venv", "__pycache__", "sql", "tests", "txt_export"}
+IGNORE_DIRS = {".venv", "__pycache__", "sql", "tests", "txt_export", "logs"}
 
 # Arquivos específicos a ignorar (por nome exato)
 IGNORE_FILES = {"__init__.py", ".env", ".env.example", "pyproject.toml", "sirep.db", "export_repo_txt.py"}

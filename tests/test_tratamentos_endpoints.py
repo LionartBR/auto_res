@@ -142,6 +142,7 @@ def test_tratamento_continuar_apos_restaurar(monkeypatch):
     service = TratamentoService()
     created = service.migrar_planos()
     assert created
+    assert service._queue is not None
     service.iniciar()
     time.sleep(0.1)
     service.pausar()
@@ -151,6 +152,7 @@ def test_tratamento_continuar_apos_restaurar(monkeypatch):
     status = novo_service.status()
     assert status["estado"] == "pausado"
     assert status["planos"]
+    assert novo_service._queue is not None
 
     novo_service.continuar()
     deadline = time.time() + 2
@@ -187,6 +189,7 @@ def test_migrar_nao_inicia_sem_iniciar(monkeypatch):
     service = TratamentoService()
     first_ids = service.migrar_planos()
     assert first_ids
+    assert service._queue is not None
     service.iniciar()
 
     deadline = time.time() + 2

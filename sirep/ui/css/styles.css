@@ -121,10 +121,11 @@
     .modal-actions .modal-button{min-width:96px;font-size:13px}
 
     /* Tratamentos */
-    .treatment-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-    .treatment-controls .muted{margin-left:4px}
-    .treatment-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-    .treatment-actions input[type="date"]{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+    .treatment-controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+    .treatment-buttons{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .treatment-buttons .muted{margin-left:4px}
+    .treatment-export{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .treatment-export input[type="date"]{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
     .treatment-grid{display:flex;flex-direction:column;gap:16px}
     .treatment-column{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0}
     #treatmentQueueTable{width:100%;border-collapse:collapse}

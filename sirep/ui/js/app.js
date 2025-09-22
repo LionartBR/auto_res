@@ -52,14 +52,6 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if (el.inputRescindidosData) {
-      try {
-        el.inputRescindidosData.value = new Date().toISOString().slice(0, 10);
-      } catch (error) {
-        console.warn('Falha ao definir data padrão', error);
-      }
-    }
-
     Logs.init();
     Gestao.init();
     Tratamento.init();

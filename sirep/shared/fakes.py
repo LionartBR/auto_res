@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import random
 from datetime import date, timedelta
-from typing import List
 
 __all__ = [
     "TIPOS_PARCELAMENTO",
@@ -79,8 +78,6 @@ _UF_CODES = [
     "SE",
     "SP",
     "TO",
-    "BH",
-    "BR",
 ]
 
 
@@ -97,16 +94,16 @@ def gerar_periodo() -> str:
     return f"{inicio.strftime('%m/%Y')} a {fim.strftime('%m/%Y')}"
 
 
-def gerar_cnpjs() -> List[str]:
+def gerar_cnpjs() -> list[str]:
     quantidade = random.randint(1, 3)
-    valores: List[str] = []
+    valores: list[str] = []
     for _ in range(quantidade):
         numero = random.randint(0, 99999999999999)
         valores.append(_formatar_cnpj(numero))
     return valores
 
 
-def gerar_bases() -> List[str]:
+def gerar_bases() -> list[str]:
     quantidade = random.randint(1, 3)
     return random.sample(_UF_CODES, k=quantidade)
 

@@ -1,43 +1,73 @@
-from datetime import datetime, timezone
-from datetime import date
-from typing import Optional, Sequence, Any, Dict, List
+"""Repository layer abstractions to interact with persistence models."""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+from typing import Any, Dict, Optional
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update
+
+from sirep.domain.enums import PlanStatus, Step
 from sirep.domain.models import (
-    Plan,
+    DiscardedPlan,
     Event,
     JobRun,
-    DiscardedPlan,
-    TreatmentPlan,
+    Plan,
     PlanLog,
+    TreatmentPlan,
 )
-from sirep.domain.enums import PlanStatus, Step
+
 
 class PlanRepository:
-    def __init__(self, db: Session): self.db = db
+    """Persistence helpers for :class:`Plan` entities."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
     def get_by_numero(self, numero_plano: str) -> Optional[Plan]:
-        return self.db.scalar(select(Plan).where(Plan.numero_plano==numero_plano))
-    def upsert(self, numero_plano: str, **fields) -> Plan:
+        stmt = select(Plan).where(Plan.numero_plano == numero_plano)
+        return self._db.scalar(stmt)
+
+    def upsert(self, numero_plano: str, **fields: Any) -> Plan:
         plan = self.get_by_numero(numero_plano)
-        if not plan:
+        if plan is None:
             plan = Plan(numero_plano=numero_plano, **fields)
-            self.db.add(plan)
+            self._db.add(plan)
         else:
-            for k,v in fields.items(): setattr(plan, k, v)
-        self.db.flush()
+            for key, value in fields.items():
+                setattr(plan, key, value)
+        self._db.flush([plan])
         return plan
-    def list_by_status(self, status: PlanStatus) -> Sequence[Plan]:
-        return self.db.scalars(select(Plan).where(Plan.status==status)).all()
-    def set_status(self, plan: Plan, status: PlanStatus): plan.status = status
+
+    def list_by_status(self, status: PlanStatus | str) -> list[Plan]:
+        target_status = status.value if isinstance(status, PlanStatus) else str(status)
+        stmt = select(Plan).where(Plan.status == target_status)
+        return list(self._db.scalars(stmt))
+
+    def set_status(self, plan: Plan, status: PlanStatus | str) -> None:
+        plan.status = status.value if isinstance(status, PlanStatus) else str(status)
+        self._db.flush([plan])
+
 
 class EventRepository:
-    def __init__(self, db: Session): self.db = db
-    def log(self, plan_id: int, step: Step, message: str, level: str="INFO"):
-        self.db.add(Event(plan_id=plan_id, step=step, message=message, level=level))
+    """Utility to store events emitted during processing."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def log(self, plan_id: int, step: Step, message: str, level: str = "INFO") -> Event:
+        event = Event(plan_id=plan_id, step=step, message=message, level=level)
+        self._db.add(event)
+        self._db.flush([event])
+        return event
+
 
 class JobRunRepository:
+    """Manage job execution metadata stored in ``job_runs`` table."""
+
     def __init__(self, db: Session) -> None:
-        self.db = db
+        self._db = db
 
     def start(
         self,
@@ -48,8 +78,7 @@ class JobRunRepository:
         info: Optional[Dict[str, Any]] = None,
         status: str = "RUNNING",
     ) -> JobRun:
-        """Cria um JobRun com os campos esperados pelo pipeline."""
-        jr = JobRun(
+        job_run = JobRun(
             job_name=job_name,
             step=step,
             input_hash=input_hash,
@@ -57,9 +86,9 @@ class JobRunRepository:
             status=status,
             started_at=datetime.now(timezone.utc),
         )
-        self.db.add(jr)
-        self.db.flush()  # garante jr.id
-        return jr
+        self._db.add(job_run)
+        self._db.flush([job_run])
+        return job_run
 
     def finish(
         self,
@@ -68,61 +97,94 @@ class JobRunRepository:
         status: str = "OK",
         info_update: Optional[Dict[str, Any]] = None,
     ) -> JobRun:
-        jr = self.db.query(JobRun).filter(JobRun.id == job_run_id).one()
-        jr.status = status
-        jr.finished_at = datetime.now(timezone.utc)
-        if info_update:
-            # mescla info antiga com update simples (dict shallow)
-            merged = dict(jr.info or {})
-            merged.update(info_update)
-            jr.info = merged
-        self.db.add(jr)
-        return jr
+        job_run = self._db.get(JobRun, job_run_id)
+        if job_run is None:
+            raise ValueError(f"JobRun com id={job_run_id} não encontrado")
 
-    def fail(self, job_run_id: int, *, info_update: Optional[Dict[str, Any]] = None) -> JobRun:
+        job_run.status = status
+        job_run.finished_at = datetime.now(timezone.utc)
+
+        if info_update:
+            merged = dict(job_run.info or {})
+            merged.update(info_update)
+            job_run.info = merged
+
+        self._db.flush([job_run])
+        return job_run
+
+    def fail(
+        self, job_run_id: int, *, info_update: Optional[Dict[str, Any]] = None
+    ) -> JobRun:
         return self.finish(job_run_id, status="FAIL", info_update=info_update)
 
-class OccurrenceRepository:
-    def __init__(self, db: Session): self.db = db
 
-    def add(self, *, numero_plano: str, situacao: str, cnpj: str, tipo: str, saldo: float, dt_situacao_atual):
+class OccurrenceRepository:
+    """Persist occurrences of discarded plans."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def add(
+        self,
+        *,
+        numero_plano: str,
+        situacao: str,
+        cnpj: str,
+        tipo: str,
+        saldo: float,
+        dt_situacao_atual: Optional[date] = None,
+    ) -> DiscardedPlan:
         row = DiscardedPlan(
-            numero_plano=numero_plano, situacao=situacao, cnpj=cnpj,
-            tipo=tipo, saldo=saldo, dt_situacao_atual=dt_situacao_atual
+            numero_plano=numero_plano,
+            situacao=situacao,
+            cnpj=cnpj,
+            tipo=tipo,
+            saldo=saldo,
+            dt_situacao_atual=dt_situacao_atual,
         )
-        self.db.add(row)
+        self._db.add(row)
+        self._db.flush([row])
         return row
 
-    def paginate(self, *, pagina: int, tamanho: int):
-        q = self.db.query(DiscardedPlan).order_by(DiscardedPlan.id.desc())
-        total = q.count()
-        rows = q.offset((pagina-1)*tamanho).limit(tamanho).all()
-        return rows, total
+    def paginate(self, *, pagina: int, tamanho: int) -> tuple[list[DiscardedPlan], int]:
+        stmt = (
+            select(DiscardedPlan)
+            .order_by(DiscardedPlan.id.desc())
+            .offset((pagina - 1) * tamanho)
+            .limit(tamanho)
+        )
+        rows = list(self._db.scalars(stmt))
+        total = self._db.scalar(select(func.count()).select_from(DiscardedPlan)) or 0
+        return rows, int(total)
 
 
 class TreatmentPlanRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    """Handle persistence of treatment plans."""
 
-    def list_all(self) -> List[TreatmentPlan]:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def list_all(self) -> list[TreatmentPlan]:
         stmt = select(TreatmentPlan).order_by(TreatmentPlan.id.asc())
-        return list(self.db.scalars(stmt))
+        return list(self._db.scalars(stmt))
 
     def get(self, treatment_id: int) -> Optional[TreatmentPlan]:
-        return self.db.scalar(select(TreatmentPlan).where(TreatmentPlan.id == treatment_id))
+        stmt = select(TreatmentPlan).where(TreatmentPlan.id == treatment_id)
+        return self._db.scalar(stmt)
 
     def by_plan_id(self, plan_id: int) -> Optional[TreatmentPlan]:
-        return self.db.scalar(select(TreatmentPlan).where(TreatmentPlan.plan_id == plan_id))
+        stmt = select(TreatmentPlan).where(TreatmentPlan.plan_id == plan_id)
+        return self._db.scalar(stmt)
 
     def add(self, plan: TreatmentPlan) -> TreatmentPlan:
-        self.db.add(plan)
-        self.db.flush()
+        self._db.add(plan)
+        self._db.flush([plan])
         return plan
 
     def remove(self, plan: TreatmentPlan) -> None:
-        self.db.delete(plan)
+        self._db.delete(plan)
 
-    def list_rescindidos_por_periodo(self, inicio: date, fim: date) -> List[TreatmentPlan]:
+    def list_rescindidos_por_periodo(self, inicio: date, fim: date) -> list[TreatmentPlan]:
         stmt = (
             select(TreatmentPlan)
             .where(
@@ -132,12 +194,14 @@ class TreatmentPlanRepository:
             )
             .order_by(TreatmentPlan.rescisao_data.asc(), TreatmentPlan.id.asc())
         )
-        return list(self.db.scalars(stmt))
+        return list(self._db.scalars(stmt))
 
 
 class PlanLogRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    """Accessors for plan log records."""
+
+    def __init__(self, db: Session) -> None:
+        self._db = db
 
     def add(
         self,
@@ -151,7 +215,7 @@ class PlanLogRepository:
         treatment_id: Optional[int] = None,
         created_at: Optional[datetime] = None,
     ) -> PlanLog:
-        contexto_norm = (contexto or "").strip().lower() or "geral"
+        contexto_norm = self._normalize_context(contexto)
         status_norm = (status or "").strip().upper() or "INFO"
         row = PlanLog(
             contexto=contexto_norm,
@@ -164,8 +228,8 @@ class PlanLogRepository:
         )
         if created_at is not None:
             row.created_at = created_at
-        self.db.add(row)
-        self.db.flush()
+        self._db.add(row)
+        self._db.flush([row])
         return row
 
     def recentes(
@@ -174,17 +238,17 @@ class PlanLogRepository:
         limit: int = 20,
         contexto: Optional[str] = None,
         order: str = "desc",
-    ) -> List[PlanLog]:
+    ) -> list[PlanLog]:
         stmt = select(PlanLog)
         if contexto:
-            stmt = stmt.where(PlanLog.contexto == contexto)
+            stmt = stmt.where(PlanLog.contexto == self._normalize_context(contexto))
         if order == "asc":
             stmt = stmt.order_by(PlanLog.created_at.asc(), PlanLog.id.asc())
         else:
             stmt = stmt.order_by(PlanLog.created_at.desc(), PlanLog.id.desc())
         if limit:
             stmt = stmt.limit(limit)
-        return list(self.db.scalars(stmt))
+        return list(self._db.scalars(stmt))
 
     def intervalo(
         self,
@@ -192,12 +256,17 @@ class PlanLogRepository:
         inicio: datetime,
         fim: datetime,
         contexto: Optional[str] = None,
-    ) -> List[PlanLog]:
+    ) -> list[PlanLog]:
         stmt = select(PlanLog).where(
             PlanLog.created_at >= inicio,
             PlanLog.created_at <= fim,
         )
         if contexto:
-            stmt = stmt.where(PlanLog.contexto == contexto)
+            stmt = stmt.where(PlanLog.contexto == self._normalize_context(contexto))
         stmt = stmt.order_by(PlanLog.created_at.asc(), PlanLog.id.asc())
-        return list(self.db.scalars(stmt))
+        return list(self._db.scalars(stmt))
+
+    @staticmethod
+    def _normalize_context(value: Optional[str]) -> str:
+        return (value or "").strip().lower() or "geral"
+

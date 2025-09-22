@@ -1,11 +1,18 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+"""Application configuration loaded from environment variables."""
+
+from __future__ import annotations
+
 from typing import Literal
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 class Settings(BaseSettings):
+    """Runtime configuration used across the project."""
+
     model_config = SettingsConfigDict(env_file=".env", env_prefix="SIREP_", extra="ignore")
     DB_URL: str = "sqlite:///./sirep.db"
-    RUNTIME_ENV: Literal["dev","prod","test"] = "dev"
+    RUNTIME_ENV: Literal["dev", "prod", "test"] = "dev"
     DRY_RUN: bool = True  # evita efeitos colaterais em stubs
-    LOG_LEVEL: Literal["DEBUG","INFO","WARNING","ERROR"] = "INFO"
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
 settings = Settings()

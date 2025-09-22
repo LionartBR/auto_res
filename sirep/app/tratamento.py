@@ -6,7 +6,7 @@ import random
 import string
 import threading
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Sequence
 
 from sirep.domain.enums import PlanStatus
 from sirep.domain.models import TreatmentPlan
@@ -322,6 +322,7 @@ class TratamentoService:
             db.commit()
 
     def continuar(self) -> None:
+        self._restore_pending_queue()
         loop = self._ensure_loop()
         with self._lock:
             if self._estado != "pausado":
@@ -430,7 +431,50 @@ class TratamentoService:
                             self._estado = "pausado"
                     else:
                         self._estado = "ocioso"
+                        self._processing_enabled = False
+                        if self._active_event is not None:
+                            self._active_event.clear()
                 self._queue.task_done()
+
+    def _pending_ids_from_planos(self, planos: Sequence[TreatmentPlan]) -> List[int]:
+        prioridade = [plano.id for plano in planos if plano.status == "processando"]
+        pendentes = [plano.id for plano in planos if plano.status == "pendente"]
+        ordem = prioridade + pendentes
+        # Remove duplicados preservando ordem
+        return list(dict.fromkeys(ordem))
+
+    def _restore_pending_ids(self, ids: Sequence[int]) -> None:
+        if not ids:
+            return
+        loop = self._ensure_loop()
+
+        def sync() -> None:
+            if self._queue is None:
+                self._queue = asyncio.Queue()
+            added_any = False
+            with self._lock:
+                existing = set(self._queue_shadow)
+                if self._current_id is not None:
+                    existing.add(self._current_id)
+                for pid in ids:
+                    if pid in existing:
+                        continue
+                    self._queue.put_nowait(pid)
+                    self._queue_shadow.append(pid)
+                    existing.add(pid)
+                    added_any = True
+                if added_any and not self._processing_enabled:
+                    self._estado = "pausado"
+
+        self._run_on_loop(sync, wait=True, loop=loop)
+
+    def _restore_pending_queue(self, planos: Optional[Sequence[TreatmentPlan]] = None) -> None:
+        if planos is None:
+            with SessionLocal() as db:
+                repo = TreatmentPlanRepository(db)
+                planos = repo.list_all()
+        pending_ids = self._pending_ids_from_planos(planos)
+        self._restore_pending_ids(pending_ids)
 
     # ---- execução das etapas ----
     async def _process_plan(self, treatment_id: int) -> None:
@@ -449,6 +493,9 @@ class TratamentoService:
             db.commit()
 
             for stage_id, stage_nome in STAGES:
+                stage_data = self._buscar_stage(treatment, stage_id)
+                if stage_data.get("status") in {"concluido", "cancelado"}:
+                    continue
                 await self._wait_resume()
                 self._marcar_inicio_etapa(treatment, stage_id)
                 etapa_label = TRATAMENTO_STAGE_LABELS.get(stage_id)
@@ -682,6 +729,8 @@ class TratamentoService:
             log_repo = PlanLogRepository(db)
             planos = treatment_repo.list_all()
             logs = log_repo.recentes(limit=40, contexto="tratamento")
+
+        self._restore_pending_queue(planos)
 
         planos_data = []
         for plano in planos:

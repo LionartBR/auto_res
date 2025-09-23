@@ -7,7 +7,6 @@ from datetime import date, datetime, time, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -38,9 +37,10 @@ from sirep.domain.schemas import (
 )
 from sirep.infra.db import SessionLocal, init_db
 from sirep.infra.logging import setup_logging
+from sirep.infra.repositories import PlanLogRepository, TreatmentPlanRepository
 from sirep.services.notepad import build_notepad_txt
 from sirep.services.orchestrator import Orchestrator
-from sirep.infra.repositories import PlanLogRepository, TreatmentPlanRepository
+from sirep.shared.config import DATETIME_DISPLAY_FORMAT, DISPLAY_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +52,7 @@ app = FastAPI(title="SIREP 2.0", version=__version__)
 ui_dir = Path(__file__).resolve().parent.parent / "ui"
 app.mount("/app", StaticFiles(directory=str(ui_dir), html=True), name="ui")
 
-try:
-    DISPLAY_TZ = ZoneInfo("America/Sao_Paulo")
-except ZoneInfoNotFoundError:
-    logger.warning(
-        "Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback"
-    )
-    DISPLAY_TZ = timezone.utc
+DISPLAY_TZ = DISPLAY_TIMEZONE
 
 CONTENT_TYPES_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
 <Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">
@@ -123,7 +117,7 @@ def _format_datetime_local(dt: Optional[datetime]) -> str:
         local = value.astimezone(DISPLAY_TZ)
     except Exception:
         local = value
-    return local.strftime("%d/%m/%Y %H:%M:%S")
+    return local.strftime(DATETIME_DISPLAY_FORMAT)
 
 
 def _serialize_log(log) -> dict:

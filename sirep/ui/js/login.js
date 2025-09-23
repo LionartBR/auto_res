@@ -172,11 +172,14 @@
     form.addEventListener('submit', handleSubmit);
     bindFieldListeners();
 
-    if (Auth.hasCredentials()) {
-      hideOverlay();
-    } else {
-      showOverlay();
+    if (Auth && typeof Auth.getUsername === 'function' && userInput) {
+      const storedUsername = Auth.getUsername();
+      if (storedUsername) {
+        userInput.value = storedUsername;
+      }
     }
+
+    showOverlay();
   }
 
   global.SirepLogin = {

@@ -1,9 +1,7 @@
 from __future__ import annotations
 import os
-from urllib.parse import urlparse
 from sirep.infra.config import settings
 from sirep.infra.db import get_engine
-from sqlalchemy import text
 
 def is_sqlite_file(url: str) -> str | None:
     if url.startswith("sqlite:///"):

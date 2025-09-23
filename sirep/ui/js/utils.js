@@ -146,6 +146,40 @@
     }
   }
 
+  function attachCopyHandlers(container) {
+    if (!container) {
+      return;
+    }
+
+    container.querySelectorAll('.copy').forEach((anchor) => {
+      anchor.onclick = async (event) => {
+        event.preventDefault();
+        const raw = anchor.getAttribute('data-copy') || anchor.textContent.trim();
+        const text = anchor.dataset.copyType === 'cnpj' ? raw.replace(/\D+/g, '') : raw;
+        try {
+          await navigator.clipboard.writeText(text);
+          if (anchor._copyTimer) {
+            clearTimeout(anchor._copyTimer);
+            anchor._copyTimer = null;
+          }
+          anchor.classList.remove('copied');
+          const raf = window.requestAnimationFrame
+            ? window.requestAnimationFrame.bind(window)
+            : (fn) => setTimeout(fn, 0);
+          raf(() => {
+            anchor.classList.add('copied');
+            anchor._copyTimer = setTimeout(() => {
+              anchor.classList.remove('copied');
+              anchor._copyTimer = null;
+            }, 900);
+          });
+        } catch (error) {
+          console.warn('Falha ao copiar item', error);
+        }
+      };
+    });
+  }
+
   function statusClass(status) {
     const key = (status || '').toLowerCase();
     if (key.includes('falha') || key.includes('erro')) return 'falha';
@@ -254,6 +288,7 @@
     fmtMoney,
     formatDateBR,
     formatDateTime,
+    attachCopyHandlers,
     statusClass,
     normalizeText,
     fmtLogDate,

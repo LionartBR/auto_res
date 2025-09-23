@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const { fmtMoney, formatDateBR, formatDateTime, api } = global.SirepUtils;
+  const { fmtMoney, formatDateBR, formatDateTime, api, attachCopyHandlers } = global.SirepUtils;
   const { elements: el } = global.SirepDOM;
   const Logs = global.SirepLogs;
 
@@ -71,36 +71,6 @@
     el.btnAnteriorOcc.disabled = state.paginaOcc <= 1;
     el.btnProximoOcc.disabled = state.paginaOcc >= state.maxPaginasOcc;
     el.lblPaginaTotalOcc.textContent = `pág. ${state.paginaOcc} de ${state.maxPaginasOcc}`;
-  }
-
-  function attachCopyHandlers(container) {
-    container.querySelectorAll('.copy').forEach((anchor) => {
-      anchor.onclick = async (event) => {
-        event.preventDefault();
-        const raw = anchor.getAttribute('data-copy') || anchor.textContent.trim();
-        const text = anchor.dataset.copyType === 'cnpj' ? raw.replace(/\D+/g, '') : raw;
-        try {
-          await navigator.clipboard.writeText(text);
-          if (anchor._copyTimer) {
-            clearTimeout(anchor._copyTimer);
-            anchor._copyTimer = null;
-          }
-          anchor.classList.remove('copied');
-          const raf = window.requestAnimationFrame
-            ? window.requestAnimationFrame.bind(window)
-            : (fn) => setTimeout(fn, 0);
-          raf(() => {
-            anchor.classList.add('copied');
-            anchor._copyTimer = setTimeout(() => {
-              anchor.classList.remove('copied');
-              anchor._copyTimer = null;
-            }, 900);
-          });
-        } catch (error) {
-          console.warn('Falha ao copiar item', error);
-        }
-      };
-    });
   }
 
   async function carregarPlanos() {

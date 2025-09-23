@@ -10,6 +10,7 @@
   let activeTab = null;
   let bootstrapped = false;
   let appShell = null;
+  let logoutButton = null;
 
   const LOGIN_PAGE = 'login.html';
 
@@ -79,6 +80,23 @@
     setActiveTab('gestao');
   }
 
+  function handleLogout() {
+    if (Auth && typeof Auth.clearCredentials === 'function') {
+      try {
+        Auth.clearCredentials();
+      } catch (error) {
+        console.warn('Falha ao limpar credenciais ao encerrar sessão.', error);
+      }
+    }
+
+    if (appShell) {
+      appShell.setAttribute('aria-hidden', 'true');
+      appShell.hidden = true;
+    }
+
+    redirectToLogin();
+  }
+
   function redirectToLogin() {
     if (global.location && typeof global.location.replace === 'function') {
       global.location.replace(LOGIN_PAGE);
@@ -106,6 +124,15 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     appShell = document.getElementById('appShell');
+    logoutButton = document.getElementById('logoutButton');
+
+    if (logoutButton) {
+      logoutButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        handleLogout();
+      });
+    }
+
     if (ensureAuthenticated()) {
       bootstrapApp();
     }

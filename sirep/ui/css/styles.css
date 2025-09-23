@@ -21,7 +21,11 @@
     @media (max-width:520px){.login-card{padding:26px 20px}}
     .top{display:flex;align-items:center;justify-content:center;padding:12px 16px;position:relative}
     .top h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.5px}
-    .top .icons{position:absolute;right:12px;display:flex;gap:12px}
+    .top .icons{position:absolute;right:12px;display:flex;gap:12px;align-items:center}
+    .logout-button{border:0;background:rgba(255,255,255,.16);color:#fff;padding:6px 14px;border-radius:999px;font-weight:700;font-size:13px;line-height:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:background-color .2s ease,transform .15s ease}
+    .logout-button:hover,.logout-button:focus-visible{background:rgba(255,255,255,.24);transform:translateY(-1px)}
+    .logout-button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(255,255,255,.32)}
+    .logout-button:active{transform:translateY(0)}
     .icon{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.12);cursor:pointer}
     main{max-width:1100px;margin:18px auto;padding:0 14px}
     .card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 20px rgba(0,0,0,.06)}

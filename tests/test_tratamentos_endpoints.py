@@ -28,6 +28,7 @@ def client():
 
 def test_migrar_tratamentos(client: TestClient):
     with SessionLocal() as db:
+        hoje = date.today()
         plano = Plan(
             numero_plano="123456",
             situacao_atual="P.RESC.",
@@ -35,6 +36,7 @@ def test_migrar_tratamentos(client: TestClient):
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA ALFA LTDA",
             tipo="ADM",
+            dt_situacao_atual=hoje,
         )
         db.add(plano)
         db.commit()
@@ -56,6 +58,9 @@ def test_migrar_tratamentos(client: TestClient):
     assert "numero_plano" in first
     assert "etapas" in first
     assert first["razao_social"] == "EMPRESA ALFA LTDA"
+    assert first["tipo"] == "ADM"
+    assert first["situacao_atual"] == "P.RESC."
+    assert first["dt_situacao_atual"] == hoje.isoformat()
 
 
 def test_tratamento_notepad_endpoint(client: TestClient):

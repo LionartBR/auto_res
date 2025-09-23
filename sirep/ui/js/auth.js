@@ -8,6 +8,8 @@
 
   let cachedCredentials = null;
   let warnedAboutFallback = false;
+  let memoryCredentials = null;
+  let warnedAboutStorageFallback = false;
 
   function hasSecureCrypto() {
     return Boolean(
@@ -107,13 +109,20 @@
 
   function persist(credentials) {
     const payload = { ...credentials };
+    cachedCredentials = { ...payload };
+    memoryCredentials = { ...payload };
+
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch (error) {
-      console.error('Não foi possível armazenar as credenciais na sessão com segurança.', error);
-      throw new Error('Falha ao armazenar as credenciais com segurança.');
+      console.warn('Não foi possível armazenar as credenciais na sessão com segurança.', error);
+      if (!warnedAboutStorageFallback) {
+        console.warn(
+          'Persistindo credenciais apenas na memória desta aba. Elas serão perdidas ao fechar ou recarregar a página.'
+        );
+        warnedAboutStorageFallback = true;
+      }
     }
-    cachedCredentials = payload;
   }
 
   function loadFromStorage() {
@@ -121,15 +130,23 @@
       return cachedCredentials;
     }
 
-    let stored;
+    let stored = null;
+    let storageAccessible = true;
     try {
       stored = sessionStorage.getItem(STORAGE_KEY);
     } catch (error) {
       console.warn('Não foi possível acessar o armazenamento seguro de credenciais.', error);
-      cachedCredentials = null;
-      return null;
+      storageAccessible = false;
     }
+
     if (!stored) {
+      if (memoryCredentials) {
+        cachedCredentials = { ...memoryCredentials };
+        return cachedCredentials;
+      }
+      if (!storageAccessible) {
+        cachedCredentials = null;
+      }
       return null;
     }
 
@@ -138,7 +155,7 @@
       if (!parsed || typeof parsed.username !== 'string' || typeof parsed.passwordHash !== 'string') {
         throw new Error('Formato inválido.');
       }
-      cachedCredentials = {
+      const resolved = {
         username: parsed.username,
         passwordHash: parsed.passwordHash,
         salt: typeof parsed.salt === 'string' ? parsed.salt : null,
@@ -150,10 +167,20 @@
               ? ALGO_SHA256
               : ALGO_PLAIN,
       };
+      cachedCredentials = { ...resolved };
+      memoryCredentials = { ...resolved };
       return cachedCredentials;
     } catch (error) {
       console.warn('Não foi possível carregar as credenciais armazenadas com segurança.', error);
-      sessionStorage.removeItem(STORAGE_KEY);
+      try {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } catch (removeError) {
+        console.warn('Falha ao limpar as credenciais inválidas do armazenamento seguro.', removeError);
+      }
+      if (memoryCredentials) {
+        cachedCredentials = { ...memoryCredentials };
+        return cachedCredentials;
+      }
       cachedCredentials = null;
       return null;
     }
@@ -197,8 +224,13 @@
   }
 
   function clearCredentials() {
-    sessionStorage.removeItem(STORAGE_KEY);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Falha ao limpar as credenciais do armazenamento seguro.', error);
+    }
     cachedCredentials = null;
+    memoryCredentials = null;
   }
 
   function hasCredentials() {

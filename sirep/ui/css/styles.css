@@ -48,7 +48,7 @@
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .grid > div{display:flex;flex-direction:column;min-height:0}
     /* Card de logs */
-    .logs-card{margin-top:16px;border-radius:14px;border:1px solid var(--line);overflow:hidden}
+    .logs-card{margin-top:16px;border-radius:14px;border:1px solid var(--line);overflow:hidden;box-shadow:none}
     .logs-header{
       display:flex;align-items:center;justify-content:space-between;
       padding:10px 12px;background:#fff;user-select:none;

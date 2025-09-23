@@ -30,7 +30,7 @@ def test_migrar_tratamentos(client: TestClient):
     with SessionLocal() as db:
         plano = Plan(
             numero_plano="123456",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=5000.0,
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA ALFA LTDA",
@@ -62,7 +62,7 @@ def test_tratamento_notepad_endpoint(client: TestClient):
     with SessionLocal() as db:
         plano = Plan(
             numero_plano="654321",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=4200.0,
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA BETA LTDA",
@@ -141,7 +141,7 @@ def test_tratamento_continuar_apos_restaurar(monkeypatch):
     with SessionLocal() as db:
         plano = Plan(
             numero_plano="REST001",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=1500.0,
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA RESTAURA LTDA",
@@ -188,7 +188,7 @@ def test_migrar_nao_inicia_sem_iniciar(monkeypatch):
     with SessionLocal() as db:
         plano1 = Plan(
             numero_plano="AUTO001",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=2000.0,
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA AUTO 1",
@@ -212,7 +212,7 @@ def test_migrar_nao_inicia_sem_iniciar(monkeypatch):
     with SessionLocal() as db:
         plano2 = Plan(
             numero_plano="AUTO002",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=3200.0,
             status=PlanStatus.PASSIVEL_RESC,
             razao_social="EMPRESA AUTO 2",

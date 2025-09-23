@@ -6,14 +6,16 @@ from datetime import datetime
 from typing import Any, Dict, Iterable
 
 from sirep.infra.config import settings
+from sirep.shared.fakes import TIPOS_REPRESENTACAO
 
 from .base import CEFGDAdapter, CNSAdapter, FGEAdapter, PIGAdapter, SirepAdapter
 
 
 class FGEStub(FGEAdapter):
     def listar_planos_presc_sem_974(self) -> Iterable[Dict[str, Any]]:
-        yield {"numero_plano": "PLN001", "tipo": "MENSAL", "situacao": "P. RESC"}
-        yield {"numero_plano": "PLN002", "tipo": "TRIMESTRAL", "situacao": "P. RESC"}
+        yield {"numero_plano": "PLN001", "tipo": TIPOS_REPRESENTACAO[0], "situacao": "P.RESC."}
+        yield {"numero_plano": "PLN002", "tipo": TIPOS_REPRESENTACAO[1], "situacao": "P.RESC."}
+        yield {"numero_plano": "PLN003", "tipo": TIPOS_REPRESENTACAO[2], "situacao": "P.RESC."}
 
     def obter_saldo_total(self, numero_plano: str) -> float:
         return 12_345.67

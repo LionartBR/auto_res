@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 __all__ = [
     "TIPOS_PARCELAMENTO",
+    "TIPOS_REPRESENTACAO",
     "gerar_razao_social",
     "gerar_periodo",
     "gerar_cnpjs",
@@ -16,6 +17,8 @@ TIPOS_PARCELAMENTO = [
     "PARCELAMENTO ESPECIAL",
     "PARCELAMENTO SIMPLIFICADO",
 ]
+
+TIPOS_REPRESENTACAO = ["ADM", "JUD", "INS"]
 
 _RAZAO_PREFIX = [
     "INDÚSTRIA",

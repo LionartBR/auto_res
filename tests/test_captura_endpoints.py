@@ -19,7 +19,7 @@ def client_with_data():
 
         plan = Plan(
             numero_plano="0001",
-            situacao_atual="P. RESC",
+            situacao_atual="P.RESC.",
             saldo=123.45,
             status="NOVO",
             razao_social="EMPRESA DEMO LTDA",

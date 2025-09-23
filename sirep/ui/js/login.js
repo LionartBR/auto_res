@@ -10,7 +10,7 @@
   let passwordInput;
   let feedback;
   let submitButton;
-  let appShell;
+  let redirectTarget = null;
   let onAuthenticatedCallback = null;
 
   function setFeedback(message) {
@@ -40,17 +40,11 @@
   }
 
   function hideOverlay() {
-    if (!overlay) {
-      return;
+    if (overlay) {
+      overlay.hidden = true;
+      overlay.setAttribute('aria-hidden', 'true');
     }
-
-    overlay.hidden = true;
-    overlay.setAttribute('aria-hidden', 'true');
     setFeedback('');
-    if (appShell) {
-      appShell.hidden = false;
-      appShell.removeAttribute('aria-hidden');
-    }
   }
 
   function focusUsername() {
@@ -65,17 +59,11 @@
   }
 
   function showOverlay() {
-    if (!overlay) {
-      return;
+    if (overlay) {
+      overlay.hidden = false;
+      overlay.setAttribute('aria-hidden', 'false');
     }
-
-    overlay.hidden = false;
-    overlay.setAttribute('aria-hidden', 'false');
     disableForm(false);
-    if (appShell) {
-      appShell.hidden = true;
-      appShell.setAttribute('aria-hidden', 'true');
-    }
     focusUsername();
   }
 
@@ -115,6 +103,16 @@
       hideOverlay();
       if (typeof onAuthenticatedCallback === 'function') {
         onAuthenticatedCallback();
+      } else {
+        const target = typeof redirectTarget === 'string' ? redirectTarget.trim() : '';
+        if (target) {
+          if (global.location && typeof global.location.assign === 'function') {
+            global.location.assign(target);
+          } else {
+            global.location.href = target;
+          }
+          return;
+        }
       }
     } catch (error) {
       console.error('Falha ao concluir o login.', error);
@@ -155,16 +153,21 @@
     passwordInput = $('#loginPassword');
     feedback = $('#loginError');
     submitButton = $('#loginSubmit');
-    appShell = $('#appShell');
 
     onAuthenticatedCallback = options && typeof options.onAuthenticated === 'function' ? options.onAuthenticated : null;
+    redirectTarget =
+      options && typeof options.redirectTo === 'string'
+        ? options.redirectTo
+        : form && form.dataset && typeof form.dataset.redirect === 'string'
+          ? form.dataset.redirect
+          : null;
 
     if (!Auth || typeof Auth.hasCredentials !== 'function') {
       console.error('Módulo de autenticação indisponível.');
       return;
     }
 
-    if (!overlay || !form || !userInput || !passwordInput || !submitButton || !appShell) {
+    if (!form || !userInput || !passwordInput || !submitButton) {
       console.warn('Componentes da tela de login não encontrados.');
       return;
     }
@@ -176,6 +179,24 @@
       const storedUsername = Auth.getUsername();
       if (storedUsername) {
         userInput.value = storedUsername;
+      }
+    }
+
+    if (redirectTarget) {
+      try {
+        if (Auth.hasCredentials()) {
+          const trimmedTarget = redirectTarget.trim();
+          if (trimmedTarget) {
+            if (global.location && typeof global.location.replace === 'function') {
+              global.location.replace(trimmedTarget);
+            } else {
+              global.location.href = trimmedTarget;
+            }
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('Falha ao verificar credenciais armazenadas.', error);
       }
     }
 

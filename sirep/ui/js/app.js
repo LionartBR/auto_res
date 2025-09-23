@@ -2,14 +2,16 @@
   'use strict';
 
   const { tabs, sections } = global.SirepDOM;
+  const Auth = global.SirepAuth;
   const Gestao = global.SirepGestao;
   const Tratamento = global.SirepTratamento;
   const Logs = global.SirepLogs;
-  const Login = global.SirepLogin;
 
   let activeTab = null;
   let bootstrapped = false;
   let appShell = null;
+
+  const LOGIN_PAGE = 'login.html';
 
   function updateTabDisplay(name) {
     tabs.forEach((tab) => {
@@ -70,10 +72,6 @@
       appShell.removeAttribute('aria-hidden');
     }
 
-    if (Login && typeof Login.hide === 'function') {
-      Login.hide();
-    }
-
     Logs.init();
     Gestao.init();
     Tratamento.init();
@@ -81,13 +79,35 @@
     setActiveTab('gestao');
   }
 
+  function redirectToLogin() {
+    if (global.location && typeof global.location.replace === 'function') {
+      global.location.replace(LOGIN_PAGE);
+    } else {
+      global.location.href = LOGIN_PAGE;
+    }
+  }
+
+  function ensureAuthenticated() {
+    if (!Auth || typeof Auth.hasCredentials !== 'function') {
+      return true;
+    }
+
+    try {
+      if (Auth.hasCredentials()) {
+        return true;
+      }
+    } catch (error) {
+      console.warn('Não foi possível verificar as credenciais armazenadas.', error);
+    }
+
+    redirectToLogin();
+    return false;
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     appShell = document.getElementById('appShell');
-
-    if (Login && typeof Login.init === 'function') {
-      Login.init({
-        onAuthenticated: bootstrapApp,
-      });
+    if (ensureAuthenticated()) {
+      bootstrapApp();
     }
 
   });

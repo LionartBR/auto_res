@@ -17,7 +17,7 @@
   const state = {
     latestLogs: [],
     logsOpen: false,
-    treatmentLogsOpen: true,
+    treatmentLogsOpen: false,
     logsLoading: false,
   };
 
@@ -272,7 +272,7 @@
     attachLogsToggle();
     attachTreatmentLogsToggle();
     setLogsOpen(false);
-    setTreatmentLogsOpen(true);
+    setTreatmentLogsOpen(false);
 
     setupExport(
       el.btnExportLogs,

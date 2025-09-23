@@ -1,3 +1,4 @@
+/*
 (function (global) {
   'use strict';
 
@@ -209,3 +210,5 @@
     hide: hideOverlay,
   };
 })(window);
+
+*/

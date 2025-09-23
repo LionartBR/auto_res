@@ -75,7 +75,11 @@
               </div>
               <div class="footer">
                 <div class="muted" id="footerInfo">nada a exibir por aqui.</div>
-                <div><button id="btnAnterior">Anterior</button><span class="muted" id="lblPaginaTotal" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximo">Próximo</button></div>
+                <div>
+                  <button id="btnAnterior" aria-label="Página anterior" title="Página anterior">&lt;</button>
+                  <span class="muted" id="lblPaginaTotal" style="margin:0 6px">pág. 1 de 1</span>
+                  <button id="btnProximo" aria-label="Próxima página" title="Próxima página">&gt;</button>
+                </div>
               </div>
             </div>
 
@@ -109,7 +113,11 @@
               </div>
               <div class="footer">
                 <div class="muted" id="footerInfoOcc">nada a exibir por aqui.</div>
-                <div><button id="btnAnteriorOcc">Anterior</button><span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">pág. 1 de 1</span><button id="btnProximoOcc">Próximo</button></div>
+                <div>
+                  <button id="btnAnteriorOcc" aria-label="Página anterior" title="Página anterior">&lt;</button>
+                  <span class="muted" id="lblPaginaTotalOcc" style="margin:0 6px">pág. 1 de 1</span>
+                  <button id="btnProximoOcc" aria-label="Próxima página" title="Próxima página">&gt;</button>
+                </div>
               </div>
             </div>
 
@@ -244,9 +252,9 @@
             <div class="treatment-table-footer">
               <div class="muted" id="treatmentTableInfo" hidden></div>
               <div>
-                <button id="btnTreatmentTablePrev">Anterior</button>
+                <button id="btnTreatmentTablePrev" aria-label="Página anterior" title="Página anterior">&lt;</button>
                 <span class="muted" id="treatmentTablePageLabel" style="margin:0 6px">pág. 1 de 1</span>
-                <button id="btnTreatmentTableNext">Próximo</button>
+                <button id="btnTreatmentTableNext" aria-label="Próxima página" title="Próxima página">&gt;</button>
               </div>
             </div>
           </div>

@@ -24,6 +24,7 @@ from sirep.domain.logs import (
     TRATAMENTO_STAGE_DEFINITIONS,
     TRATAMENTO_STAGE_LABELS,
 )
+from sirep.shared.config import DATE_DISPLAY_FORMAT
 from sirep.shared.fakes import (
     TIPOS_PARCELAMENTO,
     TIPOS_REPRESENTACAO,
@@ -641,9 +642,13 @@ class TratamentoService(AsyncLoopMixin):
         valor_base = random.uniform(350.0, 980.0)
         for idx in range(4, 7):
             valor = f"{valor_base + random.uniform(-40, 40):.2f}".replace(".", ",")
-            vencimento = (date.today() + timedelta(days=30 * (idx - 3))).strftime("%d/%m/%Y")
+            vencimento = (date.today() + timedelta(days=30 * (idx - 3))).strftime(
+                DATE_DISPLAY_FORMAT
+            )
             parcelas.append(f"{idx:03d}           {valor}              {vencimento}")
-        treatment.notas["E544_DATA_SOLICITACAO"] = data_solicitacao.strftime("%d/%m/%Y")
+        treatment.notas["E544_DATA_SOLICITACAO"] = data_solicitacao.strftime(
+            DATE_DISPLAY_FORMAT
+        )
         treatment.notas["E50H_PARCELAS_ATRASO"] = "\n".join(parcelas)
 
         if random.random() <= 0.01:
@@ -660,7 +665,7 @@ class TratamentoService(AsyncLoopMixin):
         plan.status = PlanStatus.RESCINDIDO
         plan.data_rescisao = hoje
         treatment.rescisao_data = hoje
-        treatment.notas["E554_DATA_RESCISAO_FGE"] = hoje.strftime("%d/%m/%Y")
+        treatment.notas["E554_DATA_RESCISAO_FGE"] = hoje.strftime(DATE_DISPLAY_FORMAT)
 
     def _etapa7(self, treatment: TreatmentPlan, plan_repo: PlanRepository) -> None:
         metodo = random.choice(["CNS", "Email"])
@@ -669,11 +674,16 @@ class TratamentoService(AsyncLoopMixin):
             ref = "NSU-" + "".join(random.choices(string.digits, k=8))
         else:
             ref = f"contato_{random.randint(100, 999)}@empresa.com"
-        treatment.notas["E554_DATA_COMUNICACAO"] = data_comunicacao.strftime("%d/%m/%Y")
+        treatment.notas["E554_DATA_COMUNICACAO"] = data_comunicacao.strftime(
+            DATE_DISPLAY_FORMAT
+        )
         treatment.notas["E554_METODO_COMUNICACAO"] = metodo
         treatment.notas["E554_NSU_OU_EMAIL"] = ref
         treatment.notas.setdefault("E554_NOME_DOSSIE", f"Dossie_{treatment.numero_plano}")
-        treatment.notas.setdefault("E554_DATA_FINALIZACAO_SIREP", date.today().strftime("%d/%m/%Y"))
+        treatment.notas.setdefault(
+            "E554_DATA_FINALIZACAO_SIREP",
+            date.today().strftime(DATE_DISPLAY_FORMAT),
+        )
 
         plan = plan_repo.get_by_numero(treatment.numero_plano)
         if plan:

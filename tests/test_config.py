@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -10,6 +11,12 @@ from sirep.shared.config import (
     DATETIME_DISPLAY_FORMAT,
     DATE_DISPLAY_FORMAT,
     DISPLAY_TIMEZONE,
+    LOGGING_CONFIG,
+    LOG_DIRECTORY,
+    LOG_DIRECTORY_PATH,
+    LOG_FILE_NAME,
+    LOG_FILE_PATH,
+    LOG_LEVEL,
     _resolve_timezone,
 )
 
@@ -65,3 +72,12 @@ def test_resolve_timezone_uses_fallback_when_missing(caplog) -> None:
 def test_display_timezone_is_available() -> None:
     sample = datetime(2024, 1, 1, tzinfo=timezone.utc)
     assert DISPLAY_TIMEZONE.utcoffset(sample) is not None
+
+
+def test_logging_config_matches_settings() -> None:
+    assert LOG_LEVEL == settings.LOG_LEVEL
+    assert LOG_DIRECTORY == settings.LOG_DIR
+    assert LOG_FILE_NAME == settings.LOG_FILENAME
+    assert LOG_DIRECTORY_PATH == Path(settings.LOG_DIR)
+    assert LOG_FILE_PATH == LOG_DIRECTORY_PATH / LOG_FILE_NAME
+    assert LOGGING_CONFIG.file_path == LOG_FILE_PATH

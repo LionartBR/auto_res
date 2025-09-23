@@ -1,23 +1,22 @@
 from __future__ import annotations
+
 import logging
 import logging.handlers
-import os
 import sys
 
-DEFAULT_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_DIR = os.getenv("LOG_DIR", "logs")
-LOG_PATH = os.path.join(LOG_DIR, "sirep.log")
+from sirep.shared.config import LOG_DIRECTORY_PATH, LOG_FILE_PATH, LOG_LEVEL
+
 
 def setup_logging(level: str | None = None) -> None:
-    level = level or DEFAULT_LEVEL
-    os.makedirs(LOG_DIR, exist_ok=True)
+    resolved_level = (level or LOG_LEVEL).upper()
+    LOG_DIRECTORY_PATH.mkdir(parents=True, exist_ok=True)
 
     root = logging.getLogger()
-    root.setLevel(level)
+    root.setLevel(resolved_level)
 
     # Console handler (formato compacto)
     ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(level)
+    ch.setLevel(resolved_level)
     ch.setFormatter(logging.Formatter(
         fmt="%(asctime)s %(levelname).1s %(name)s: %(message)s",
         datefmt="%H:%M:%S"
@@ -25,9 +24,9 @@ def setup_logging(level: str | None = None) -> None:
 
     # File handler com rotação
     fh = logging.handlers.RotatingFileHandler(
-        LOG_PATH, maxBytes=10_000_000, backupCount=5, encoding="utf-8"
+        str(LOG_FILE_PATH), maxBytes=10_000_000, backupCount=5, encoding="utf-8"
     )
-    fh.setLevel(level)
+    fh.setLevel(resolved_level)
     fh.setFormatter(logging.Formatter(
         fmt="%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d]: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
@@ -40,4 +39,4 @@ def setup_logging(level: str | None = None) -> None:
 
     # Integra loggers conhecidos
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "asyncio"):
-        logging.getLogger(name).setLevel(level)
+        logging.getLogger(name).setLevel(resolved_level)

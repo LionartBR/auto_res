@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     RUNTIME_ENV: Literal["dev", "prod", "test"] = "dev"
     DRY_RUN: bool = True  # evita efeitos colaterais em stubs
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    LOG_DIR: str = "logs"
+    LOG_FILENAME: str = "sirep.log"
     TIMEZONE: str = "America/Sao_Paulo"
     TIMEZONE_FALLBACK_OFFSET_MINUTES: int = -180
     DATE_FORMAT: str = "%d/%m/%Y"

@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.repositories import PlanRepository, EventRepository, JobRunRepository
 from sirep.shared.idempotency import compute_hash
+from sirep.shared.fakes import gerar_cnpjs
 from sirep.adapters.base import (
     FGEAdapter, SirepAdapter, CEFGDAdapter, CNSAdapter, PIGAdapter
 )
@@ -32,6 +33,19 @@ class Etapa1Captura:
                 numero = p["numero_plano"]
                 tipo = p.get("tipo")
                 saldo = self.fge.obter_saldo_total(numero)
+                raw_cnpj = (
+                    p.get("cnpj")
+                    or p.get("CNPJ")
+                    or p.get("representacao")
+                    or p.get("REPRESENTACAO")
+                )
+                if not raw_cnpj:
+                    lista = p.get("cnpjs") or p.get("CNPJS")
+                    if isinstance(lista, (list, tuple)) and lista:
+                        raw_cnpj = lista[0]
+                cnpj = str(raw_cnpj).strip() if raw_cnpj else ""
+                if not cnpj:
+                    cnpj = gerar_cnpjs()[0]
 
                 linhas.append(
                     {
@@ -47,7 +61,8 @@ class Etapa1Captura:
                         "JUSTIFICATIVA": "",
                         "MATRICULA": "",
                         "DT_PARCELA_ATRASO": "",
-                        "REPRESENTACAO": "",
+                        "REPRESENTACAO": cnpj,
+                        "CNPJ": cnpj,
                     }
                 )
 
@@ -64,7 +79,7 @@ class Etapa1Captura:
                     justificativa="",
                     matricula="",
                     dt_parcela_atraso=None,
-                    representacao="",
+                    representacao=cnpj,
                     status=PlanStatus.PASSIVEL_RESC,
                     tipo_parcelamento=tipo,
                     saldo_total=saldo,

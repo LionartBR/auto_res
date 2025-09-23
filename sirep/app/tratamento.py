@@ -80,6 +80,7 @@ class TratamentoService(AsyncLoopMixin):
                 cnpjs = gerar_cnpjs()
                 bases = gerar_bases()
                 tipo = random.choice(TIPOS_PARCELAMENTO)
+                principal_cnpj = cnpjs[0]
 
                 plan = plans_repo.upsert(
                     numero_plano=numero,
@@ -93,12 +94,13 @@ class TratamentoService(AsyncLoopMixin):
                     status=PlanStatus.PASSIVEL_RESC,
                     razao_social=razao,
                     tipo_parcelamento=tipo,
+                    representacao=principal_cnpj,
                 )
                 plan.cmb_ajuste = ""
                 plan.justificativa = ""
                 plan.matricula = ""
                 plan.dt_parcela_atraso = None
-                plan.representacao = ""
+                plan.representacao = principal_cnpj
                 plan.data_rescisao = None
                 plan.data_comunicacao = None
                 plan.metodo_comunicacao = None
@@ -199,6 +201,8 @@ class TratamentoService(AsyncLoopMixin):
                 bases = gerar_bases()
                 tipo = plan.tipo_parcelamento or plan.tipo or random.choice(TIPOS_PARCELAMENTO)
                 plan.tipo_parcelamento = plan.tipo_parcelamento or tipo
+                if not plan.representacao and cnpjs:
+                    plan.representacao = cnpjs[0]
 
                 notas = {
                     "PLANO": plan.numero_plano,

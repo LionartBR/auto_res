@@ -517,7 +517,7 @@ class CapturaService(AsyncLoopMixin):
                     justificativa="",
                     matricula="",
                     dt_parcela_atraso=None,
-                    representacao="",
+                    representacao=cnpj,
                     status=PlanStatus.PASSIVEL_RESC,
                     tipo_parcelamento=tipo,
                     saldo_total=saldo,

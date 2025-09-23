@@ -297,10 +297,17 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
         q = db.query(Plan).order_by(Plan.saldo.desc().nullslast())
         total = q.count()
         raw_items = q.offset((pagina - 1) * tamanho).limit(tamanho).all()
-        items = [
-            PlanOut.model_validate(plan).model_dump(mode="json")
-            for plan in raw_items
-        ]
+        items = []
+        for plan in raw_items:
+            serialized = PlanOut.model_validate(plan).model_dump(mode="json")
+            raw_cnpj = getattr(plan, "cnpj", None)
+            if not raw_cnpj:
+                raw_cnpj = getattr(plan, "representacao", None)
+            if not raw_cnpj:
+                raw_cnpj = serialized.get("cnpj") or serialized.get("representacao")
+            cnpj = str(raw_cnpj).strip() if raw_cnpj else None
+            serialized["cnpj"] = cnpj
+            items.append(serialized)
         total_passiveis = (
             db.query(Plan).filter(Plan.situacao_atual == "P.RESC.").count()
         )

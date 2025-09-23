@@ -6,7 +6,6 @@
   const Tratamento = global.SirepTratamento;
   const Logs = global.SirepLogs;
   const Login = global.SirepLogin;
-  const Auth = global.SirepAuth;
 
   let activeTab = null;
   let bootstrapped = false;
@@ -91,8 +90,5 @@
       });
     }
 
-    if (Auth && typeof Auth.hasCredentials === 'function' && Auth.hasCredentials()) {
-      bootstrapApp();
-    }
   });
 })(window);

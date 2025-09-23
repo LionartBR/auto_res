@@ -15,7 +15,6 @@
     maxPaginasOcc: 1,
     filtroSituacaoOcc: 'TODAS',
     timer: null,
-    ultimoEstado: null,
     filtroHandlers: {
       outside: null,
       scroll: null,
@@ -25,12 +24,16 @@
     activeSubtab: 'planos',
   };
 
-  function setBar(percentual) {
+  function setBar(percentual, estado) {
     if (!el.barTotal || !el.lblTotal) {
       return;
     }
-    el.barTotal.style.width = `${percentual}%`;
-    el.lblTotal.textContent = `${percentual}% concluído`;
+    const numeric = Number(percentual);
+    const value = Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
+    el.barTotal.style.width = `${value}%`;
+    el.lblTotal.textContent = `${value}% concluído`;
+    const isComplete = String(estado || '').toLowerCase() === 'concluido';
+    el.barTotal.classList.toggle('progress-complete', isComplete);
   }
 
   function stateButtons(estado) {
@@ -320,7 +323,7 @@
     const status = await api('/captura/status');
     const estadoAtual = status.estado;
     stateButtons(estadoAtual);
-    setBar(status.progresso_total);
+    setBar(status.progresso_total, estadoAtual);
     if (el.ultima) {
       const ultimaAtualizacao = formatDateTime(status.ultima_atualizacao);
       el.ultima.textContent = `Última atualização: ${ultimaAtualizacao || '—'}`;
@@ -328,10 +331,6 @@
     if (el.badgeOcorr) {
       el.badgeOcorr.textContent = status.ocorrencias_total ?? 0;
     }
-    if (state.ultimoEstado && state.ultimoEstado !== 'concluido' && estadoAtual === 'concluido') {
-      abrirModalConclusao();
-    }
-    state.ultimoEstado = estadoAtual;
     await Logs.refresh();
   }
 
@@ -356,38 +355,6 @@
       clearInterval(state.timer);
       state.timer = null;
     }
-  }
-
-  function abrirModalConclusao() {
-    if (!el.modalConcluido) {
-      return;
-    }
-    el.modalConcluido.classList.add('active');
-    el.modalConcluido.setAttribute('aria-hidden', 'false');
-    if (el.btnModalOk) {
-      try {
-        el.btnModalOk.focus();
-        return;
-      } catch (error) {
-        console.warn('Falha ao focar botão OK do modal', error);
-      }
-    }
-    const card = el.modalConcluido.querySelector('.modal-window');
-    if (card) {
-      try {
-        card.focus();
-      } catch (error) {
-        console.warn('Falha ao focar modal', error);
-      }
-    }
-  }
-
-  function fecharModalConclusao() {
-    if (!el.modalConcluido) {
-      return;
-    }
-    el.modalConcluido.classList.remove('active');
-    el.modalConcluido.setAttribute('aria-hidden', 'true');
   }
 
   function showSubtab(name) {
@@ -461,20 +428,6 @@
         });
       });
     }
-  }
-
-  function initModal() {
-    if (el.btnModalOk) {
-      el.btnModalOk.addEventListener('click', () => fecharModalConclusao());
-    }
-    if (el.btnModalClose) {
-      el.btnModalClose.addEventListener('click', () => fecharModalConclusao());
-    }
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && el.modalConcluido && el.modalConcluido.classList.contains('active')) {
-        fecharModalConclusao();
-      }
-    });
   }
 
   function initButtons() {
@@ -573,7 +526,6 @@
     initButtons();
     initSubtabs();
     initFilterMenu();
-    initModal();
     atualizarFiltroOcorrMenu();
   }
 

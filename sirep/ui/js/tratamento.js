@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const { formatDateBR, normalizeText, downloadBlob, api } = global.SirepUtils;
+  const { formatDateBR, normalizeText, downloadBlob, api, attachCopyHandlers } = global.SirepUtils;
   const { elements: el } = global.SirepDOM;
   const Logs = global.SirepLogs;
 
@@ -217,15 +217,30 @@
       el.tbodyTratamentoTabela.appendChild(tr);
     } else {
       paginaItens.forEach((plan) => {
-        const cnpjs = Array.isArray(plan.cnpjs) && plan.cnpjs.length ? plan.cnpjs.join('<br>') : '—';
+        const numeroPlano = plan.numero_plano ? String(plan.numero_plano) : '';
+        const numeroPlanoCell = numeroPlano
+          ? `<a class="copy" data-copy="${numeroPlano}" href="#">${numeroPlano}</a>`
+          : '—';
+
+        const cnpjList = Array.isArray(plan.cnpjs) ? plan.cnpjs.filter(Boolean) : [];
+        const primaryCnpj = cnpjList.length ? cnpjList[0] : null;
+        const extraCount = cnpjList.length > 1 ? cnpjList.length - 1 : 0;
+        let cnpjCell = '—';
+        if (primaryCnpj) {
+          const extraInfo = extraCount
+            ? `<span class="muted" aria-hidden="true"> (+${extraCount})</span><span class="sr-only">, mais ${extraCount} CNPJ(s) oculto(s)</span>`
+            : '';
+          cnpjCell = `<a class="copy" data-copy="${primaryCnpj}" data-copy-type="cnpj" href="#">${primaryCnpj}</a>${extraInfo}`;
+        }
+
         const situacao = plan.status ? formatTreatmentStatus(plan.status) : '—';
         const dtSituacao = plan.rescisao_data ? formatDateBR(plan.rescisao_data) : '—';
         const btn = `<button class="btn-link" data-action="download-notepad" data-plan-id="${plan.id}" data-numero="${plan.numero_plano}">Dados (.txt)</button>`;
         const tipo = Array.isArray(plan.bases) && plan.bases.length ? plan.bases.join(', ') : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${plan.numero_plano || '—'}</td>
-          <td>${cnpjs}</td>
+          <td>${numeroPlanoCell}</td>
+          <td>${cnpjCell}</td>
           <td>${plan.razao_social || '—'}</td>
           <td>${tipo}</td>
           <td>${situacao}</td>
@@ -234,6 +249,7 @@
         `;
         el.tbodyTratamentoTabela.appendChild(tr);
       });
+      attachCopyHandlers(el.tbodyTratamentoTabela);
     }
 
     if (el.treatmentTableInfo) {

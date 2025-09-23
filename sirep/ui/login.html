@@ -50,8 +50,25 @@
   <script>
     window.addEventListener('DOMContentLoaded', function () {
       if (window.SirepLogin && typeof window.SirepLogin.init === 'function') {
+        var redirectTarget = 'index.html';
+
+        try {
+          var params = new URLSearchParams(window.location.search || '');
+          var nextParam = params.get('next');
+          if (nextParam) {
+            var candidate = String(nextParam).trim();
+            var hasProtocol = /^[a-z][a-z0-9+.-]*:/i.test(candidate) || candidate.startsWith('//');
+            var hasTraversal = candidate.startsWith('..');
+            if (candidate && !hasProtocol && !hasTraversal) {
+              redirectTarget = candidate;
+            }
+          }
+        } catch (error) {
+          console.warn('Não foi possível interpretar o destino pós-login.', error);
+        }
+
         window.SirepLogin.init({
-          redirectTo: 'index.html',
+          redirectTo: redirectTarget,
         });
       }
     });

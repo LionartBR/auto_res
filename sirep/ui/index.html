@@ -242,7 +242,7 @@
               </table>
             </div>
             <div class="treatment-table-footer">
-              <div class="muted" id="treatmentTableInfo">Nenhum plano encontrado.</div>
+              <div class="muted" id="treatmentTableInfo" hidden></div>
               <div>
                 <button id="btnTreatmentTablePrev">Anterior</button>
                 <span class="muted" id="treatmentTablePageLabel" style="margin:0 6px">pág. 1 de 1</span>
@@ -257,7 +257,7 @@
             id="treatmentLogsHeader"
             role="button"
             tabindex="0"
-            aria-expanded="true"
+            aria-expanded="false"
             aria-controls="treatmentLogsBody"
             title="Mostrar ou ocultar a janela de eventos do tratamento"
           >
@@ -277,7 +277,7 @@
             </div>
           </div>
 
-          <div class="logs-body" id="treatmentLogsBody">
+          <div class="logs-body" id="treatmentLogsBody" hidden>
             <div class="logs-table-wrap" id="treatmentLogsWrap">
               <table class="logs-table" aria-label="Eventos de tratamento">
                 <thead>

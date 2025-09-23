@@ -255,9 +255,11 @@
     if (el.treatmentTableInfo) {
       if (total) {
         const exibindo = paginaItens.length ? `${inicio + 1} - ${inicio + paginaItens.length}` : '0 - 0';
+        el.treatmentTableInfo.hidden = false;
         el.treatmentTableInfo.textContent = `Exibindo ${exibindo} de ${total} planos.`;
       } else {
-        el.treatmentTableInfo.textContent = 'Nenhum plano encontrado.';
+        el.treatmentTableInfo.hidden = true;
+        el.treatmentTableInfo.textContent = '';
       }
     }
 

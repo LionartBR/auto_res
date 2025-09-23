@@ -2,6 +2,8 @@
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 ui-sans-serif,system-ui,Segoe UI,Roboto}
     header{position:sticky;top:0;z-index:10;background:linear-gradient(90deg,var(--hdr-a),var(--hdr-b),var(--hdr-c));color:#fff}
     .login-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,rgba(0,57,186,.88),rgba(16,140,188,.82));backdrop-filter:blur(6px);z-index:1200}
+    body.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0;padding:24px;background:linear-gradient(135deg,rgba(0,57,186,.88),rgba(16,140,188,.82));color:var(--text)}
+    .login-screen__content{width:100%;display:flex;align-items:center;justify-content:center}
     .login-card{width:100%;max-width:360px;background:#fff;border-radius:18px;padding:32px 28px;box-shadow:0 28px 60px rgba(15,23,42,.25);display:flex;flex-direction:column;gap:18px}
     .login-card h2{margin:0;font-size:22px;font-weight:800;color:var(--accent);text-align:center}
     .login-description{margin:0;color:var(--muted);line-height:1.5;font-size:14px}

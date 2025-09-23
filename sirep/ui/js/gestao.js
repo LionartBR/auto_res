@@ -15,7 +15,6 @@
     maxPaginasOcc: 1,
     filtroSituacaoOcc: 'TODAS',
     timer: null,
-    ultimoEstado: null,
     filtroHandlers: {
       outside: null,
       scroll: null,
@@ -25,12 +24,16 @@
     activeSubtab: 'planos',
   };
 
-  function setBar(percentual) {
+  function setBar(percentual, estado) {
     if (!el.barTotal || !el.lblTotal) {
       return;
     }
-    el.barTotal.style.width = `${percentual}%`;
-    el.lblTotal.textContent = `${percentual}% concluído`;
+    const numeric = Number(percentual);
+    const value = Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
+    el.barTotal.style.width = `${value}%`;
+    el.lblTotal.textContent = `${value}% concluído`;
+    const isComplete = String(estado || '').toLowerCase() === 'concluido';
+    el.barTotal.classList.toggle('progress-complete', isComplete);
   }
 
   function stateButtons(estado) {
@@ -47,14 +50,26 @@
       status === 'executando' ? 'Em processamento' : status === 'pausado' ? 'Pausado' : 'Ocioso';
   }
 
-  function updateFooter(hasData) {
+  function updateFooter(totalRegistros, itensPagina) {
     if (!el.footerInfo || !el.btnAnterior || !el.btnProximo || !el.lblPaginaTotal) {
       return;
     }
 
-    el.footerInfo.textContent = hasData
-      ? `exibindo ${state.tamanho} por pág. • ${state.totalPlanos.passiveis ?? 0} planos passíveis de rescisão.`
-      : 'nada a exibir por aqui.';
+    const totalPassivos = Number(state.totalPlanos.passiveis ?? 0);
+    const totalReg = Number(totalRegistros ?? 0);
+    const totalPlanos = totalPassivos > 0 ? totalPassivos : totalReg;
+
+    if (totalPlanos > 0) {
+      const paginaAtual = Math.max(1, state.pagina);
+      const inicioBase = (paginaAtual - 1) * state.tamanho + 1;
+      const inicio = Math.min(inicioBase, totalPlanos);
+      const quantidadePagina = Math.max(0, Number(itensPagina ?? 0));
+      const fimEstimado = inicio + Math.max(quantidadePagina - 1, 0);
+      const fim = Math.max(inicio, Math.min(fimEstimado, totalPlanos));
+      el.footerInfo.textContent = `Exibindo ${inicio} - ${fim} de ${totalPlanos} planos.`;
+    } else {
+      el.footerInfo.textContent = 'nada a exibir por aqui.';
+    }
     el.btnAnterior.disabled = state.pagina <= 1;
     el.btnProximo.disabled = state.pagina >= state.maxPaginas;
     el.lblPaginaTotal.textContent = `pág. ${state.pagina} de ${state.maxPaginas}`;
@@ -91,9 +106,14 @@
     el.tbody.innerHTML = '';
     items.forEach((plano) => {
       const tr = document.createElement('tr');
+      const rawCnpj = plano.cnpj ?? plano.representacao ?? '';
+      const cnpjValue = String(rawCnpj ?? '').trim();
+      const cnpjCell = cnpjValue
+        ? `<a class="copy" data-copy="${cnpjValue}" data-copy-type="cnpj" href="#">${cnpjValue}</a>`
+        : '';
       tr.innerHTML = `
         <td><a class="copy" data-copy="${plano.numero_plano}" href="#">${plano.numero_plano || ''}</a></td>
-        <td>${plano.gifug || ''}</td>
+        <td>${cnpjCell}</td>
         <td>${plano.situacao_atual || ''}</td>
         <td>${plano.tipo || ''}</td>
         <td class="right">${plano.dias_em_atraso ?? ''}</td>
@@ -103,7 +123,7 @@
       el.tbody.appendChild(tr);
     });
     attachCopyHandlers(el.tbody);
-    updateFooter(totalRegistros > 0);
+    updateFooter(totalRegistros, items.length);
   }
 
   async function carregarOcorrencias() {
@@ -320,7 +340,7 @@
     const status = await api('/captura/status');
     const estadoAtual = status.estado;
     stateButtons(estadoAtual);
-    setBar(status.progresso_total);
+    setBar(status.progresso_total, estadoAtual);
     if (el.ultima) {
       const ultimaAtualizacao = formatDateTime(status.ultima_atualizacao);
       el.ultima.textContent = `Última atualização: ${ultimaAtualizacao || '—'}`;
@@ -328,10 +348,6 @@
     if (el.badgeOcorr) {
       el.badgeOcorr.textContent = status.ocorrencias_total ?? 0;
     }
-    if (state.ultimoEstado && state.ultimoEstado !== 'concluido' && estadoAtual === 'concluido') {
-      abrirModalConclusao();
-    }
-    state.ultimoEstado = estadoAtual;
     await Logs.refresh();
   }
 
@@ -356,38 +372,6 @@
       clearInterval(state.timer);
       state.timer = null;
     }
-  }
-
-  function abrirModalConclusao() {
-    if (!el.modalConcluido) {
-      return;
-    }
-    el.modalConcluido.classList.add('active');
-    el.modalConcluido.setAttribute('aria-hidden', 'false');
-    if (el.btnModalOk) {
-      try {
-        el.btnModalOk.focus();
-        return;
-      } catch (error) {
-        console.warn('Falha ao focar botão OK do modal', error);
-      }
-    }
-    const card = el.modalConcluido.querySelector('.modal-window');
-    if (card) {
-      try {
-        card.focus();
-      } catch (error) {
-        console.warn('Falha ao focar modal', error);
-      }
-    }
-  }
-
-  function fecharModalConclusao() {
-    if (!el.modalConcluido) {
-      return;
-    }
-    el.modalConcluido.classList.remove('active');
-    el.modalConcluido.setAttribute('aria-hidden', 'true');
   }
 
   function showSubtab(name) {
@@ -461,20 +445,6 @@
         });
       });
     }
-  }
-
-  function initModal() {
-    if (el.btnModalOk) {
-      el.btnModalOk.addEventListener('click', () => fecharModalConclusao());
-    }
-    if (el.btnModalClose) {
-      el.btnModalClose.addEventListener('click', () => fecharModalConclusao());
-    }
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && el.modalConcluido && el.modalConcluido.classList.contains('active')) {
-        fecharModalConclusao();
-      }
-    });
   }
 
   function initButtons() {
@@ -573,7 +543,6 @@
     initButtons();
     initSubtabs();
     initFilterMenu();
-    initModal();
     atualizarFiltroOcorrMenu();
   }
 

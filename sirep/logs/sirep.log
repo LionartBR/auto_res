@@ -18,3 +18,6 @@
 2025-09-22 21:12:23 INFO sirep.app.captura [captura.py:192]: captura pausada
 2025-09-22 21:12:28 INFO sirep.app.captura [captura.py:274]: captura finalizada: pausado
 2025-09-22 21:12:35 WARNING sirep.app.api [api.py:58]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
+2025-09-22 21:27:24 WARNING sirep.app.api [api.py:58]: Fuso horário 'America/Sao_Paulo' não encontrado; usando UTC como fallback
+2025-09-22 21:28:03 INFO sirep.app.captura [captura.py:159]: captura iniciada
+2025-09-22 21:28:59 INFO sirep.app.captura [captura.py:274]: captura finalizada: concluido

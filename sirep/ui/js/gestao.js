@@ -47,14 +47,26 @@
       status === 'executando' ? 'Em processamento' : status === 'pausado' ? 'Pausado' : 'Ocioso';
   }
 
-  function updateFooter(hasData) {
+  function updateFooter(totalRegistros, itensPagina) {
     if (!el.footerInfo || !el.btnAnterior || !el.btnProximo || !el.lblPaginaTotal) {
       return;
     }
 
-    el.footerInfo.textContent = hasData
-      ? `exibindo ${state.tamanho} por pág. • ${state.totalPlanos.passiveis ?? 0} planos passíveis de rescisão.`
-      : 'nada a exibir por aqui.';
+    const totalPassivos = Number(state.totalPlanos.passiveis ?? 0);
+    const totalReg = Number(totalRegistros ?? 0);
+    const totalPlanos = totalPassivos > 0 ? totalPassivos : totalReg;
+
+    if (totalPlanos > 0) {
+      const paginaAtual = Math.max(1, state.pagina);
+      const inicioBase = (paginaAtual - 1) * state.tamanho + 1;
+      const inicio = Math.min(inicioBase, totalPlanos);
+      const quantidadePagina = Math.max(0, Number(itensPagina ?? 0));
+      const fimEstimado = inicio + Math.max(quantidadePagina - 1, 0);
+      const fim = Math.max(inicio, Math.min(fimEstimado, totalPlanos));
+      el.footerInfo.textContent = `Exibindo ${inicio} - ${fim} de ${totalPlanos} planos.`;
+    } else {
+      el.footerInfo.textContent = 'nada a exibir por aqui.';
+    }
     el.btnAnterior.disabled = state.pagina <= 1;
     el.btnProximo.disabled = state.pagina >= state.maxPaginas;
     el.lblPaginaTotal.textContent = `pág. ${state.pagina} de ${state.maxPaginas}`;
@@ -91,9 +103,14 @@
     el.tbody.innerHTML = '';
     items.forEach((plano) => {
       const tr = document.createElement('tr');
+      const rawCnpj = plano.cnpj ?? plano.representacao ?? '';
+      const cnpjValue = String(rawCnpj ?? '').trim();
+      const cnpjCell = cnpjValue
+        ? `<a class="copy" data-copy="${cnpjValue}" data-copy-type="cnpj" href="#">${cnpjValue}</a>`
+        : '';
       tr.innerHTML = `
         <td><a class="copy" data-copy="${plano.numero_plano}" href="#">${plano.numero_plano || ''}</a></td>
-        <td>${plano.gifug || ''}</td>
+        <td>${cnpjCell}</td>
         <td>${plano.situacao_atual || ''}</td>
         <td>${plano.tipo || ''}</td>
         <td class="right">${plano.dias_em_atraso ?? ''}</td>
@@ -103,7 +120,7 @@
       el.tbody.appendChild(tr);
     });
     attachCopyHandlers(el.tbody);
-    updateFooter(totalRegistros > 0);
+    updateFooter(totalRegistros, items.length);
   }
 
   async function carregarOcorrencias() {

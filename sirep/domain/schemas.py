@@ -21,6 +21,7 @@ class PlanOut(BaseModel):
     matricula: Optional[str] = None
     dt_parcela_atraso: Optional[date] = None
     representacao: Optional[str] = None
+    cnpj: Optional[str] = None
     status: PlanStatus
     data_rescisao: Optional[date] = None
     data_comunicacao: Optional[date] = None

@@ -23,6 +23,7 @@ def client_with_data():
             saldo=123.45,
             status="NOVO",
             razao_social="EMPRESA DEMO LTDA",
+            representacao="12.345.678/0001-90",
         )
         db.add(plan)
 
@@ -68,6 +69,7 @@ def test_captura_planos_returns_serializable(client_with_data):
     first = payload["items"][0]
     assert first["numero_plano"] == "0001"
     assert first["status"] == "NOVO"
+    assert first["cnpj"] == "12.345.678/0001-90"
 
 
 def test_captura_ocorrencias_returns_serializable(client_with_data):

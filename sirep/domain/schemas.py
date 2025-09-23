@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -43,4 +43,30 @@ class DiscardedPlanOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class StepMetadataOut(BaseModel):
+    code: str
+    label: str
+    category: str
+    order: int
+    stage: Optional[int] = None
+
+
+class PipelineRunRequest(BaseModel):
+    steps: Optional[list[str]] = None
+
+
+class PipelineRunItem(BaseModel):
+    code: str
+    label: str
+    category: str
+    order: int
+    result: dict[str, Any]
+    stage: Optional[int] = None
+
+
+class PipelineRunResponse(BaseModel):
+    count: int
+    items: list[PipelineRunItem]
 

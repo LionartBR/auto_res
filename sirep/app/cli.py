@@ -7,12 +7,12 @@ from typing import Sequence
 import uvicorn
 
 from sirep.app.api import app
-from sirep.domain.enums import Step
+from sirep.app.steps import default_step_sequence, parse_steps_text
 from sirep.services.orchestrator import Orchestrator
 
 
 def _default_steps() -> str:
-    return ",".join(Step.__members__.keys())
+    return ",".join(step.name for step in default_step_sequence())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,47 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8000)
 
     return parser
-
-
-def _normalizar_nome_etapa(nome: str) -> str:
-    candidato = nome.strip().upper()
-    if not candidato:
-        return ""
-    if candidato in Step.__members__:
-        return candidato
-    if not candidato.startswith("ETAPA_"):
-        candidato = f"ETAPA_{candidato}"
-    return candidato
-
-
-def parse_steps(raw: str) -> list[Step]:
-    """Converte uma lista textual de etapas em ``Step``.
-
-    Aceita valores com ou sem o prefixo ``ETAPA_`` e ignora espaços em branco.
-    """
-
-    entradas = [item.strip() for item in raw.split(",") if item.strip()]
-    if not entradas:
-        raise ValueError("Nenhuma etapa informada.")
-
-    passos: list[Step] = []
-    for entrada in entradas:
-        nome = _normalizar_nome_etapa(entrada)
-        try:
-            passos.append(Step[nome])
-        except KeyError as exc:
-            opcoes = ", ".join(Step.__members__.keys())
-            raise ValueError(
-                f"Etapa inválida '{entrada}'. Opções válidas: {opcoes}."
-            ) from exc
-    return passos
-
-
 def handle_run(steps_text: str) -> int:
     """Executa o comando ``run`` retornando um código de saída."""
 
     try:
-        steps = parse_steps(steps_text)
+        steps = parse_steps_text(steps_text)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1

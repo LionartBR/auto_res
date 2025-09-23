@@ -14,6 +14,7 @@
     .content{padding:16px}
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .progress-row{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:8px;width:100%}
+    .progress-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
     button{appearance:none;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;font-weight:700}
     select{border:1px solid var(--line);background:#fff;color:var(--text);padding:8px 12px;border-radius:10px;font-weight:600;min-width:160px}
     select:focus{outline:2px solid rgba(16,140,188,.25);outline-offset:1px}

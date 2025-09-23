@@ -38,13 +38,14 @@
                 <button id="btnContinuar" disabled>Continuar</button>
               </div>
             </div>
-            <div class="muted">Status: <span id="estadoTexto">Ocioso</span></div>
+            <div class="muted">Estado: <span id="estadoTexto">Ocioso</span></div>
             <div class="progress-row">
               <div class="progress" title="Progresso total"><div id="barTotal" style="width:0%"></div></div>
-              <span id="lblTotal" class="muted">0% concluído</span>
+              <div class="progress-info">
+                <span id="lblTotal" class="muted">0% concluído</span>
+                <span class="muted" id="ultimaAtualizacao">Última atualização: —</span>
+              </div>
             </div>
-
-            <div class="muted" id="ultimaAtualizacao">Última atualização: —</div>
 
             <div class="subtabs">
               <span class="subtab active" id="subtabPlanos">Planos capturados</span>

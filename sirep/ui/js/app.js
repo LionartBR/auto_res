@@ -1,12 +1,16 @@
 (function (global) {
   'use strict';
 
-  const { elements: el, tabs, sections } = global.SirepDOM;
+  const { tabs, sections } = global.SirepDOM;
   const Gestao = global.SirepGestao;
   const Tratamento = global.SirepTratamento;
   const Logs = global.SirepLogs;
+  const Login = global.SirepLogin;
+  const Auth = global.SirepAuth;
 
   let activeTab = null;
+  let bootstrapped = false;
+  let appShell = null;
 
   function updateTabDisplay(name) {
     tabs.forEach((tab) => {
@@ -51,11 +55,44 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function bootstrapApp() {
+    if (bootstrapped) {
+      return;
+    }
+
+    bootstrapped = true;
+
+    if (!appShell) {
+      appShell = document.getElementById('appShell');
+    }
+
+    if (appShell) {
+      appShell.hidden = false;
+      appShell.removeAttribute('aria-hidden');
+    }
+
+    if (Login && typeof Login.hide === 'function') {
+      Login.hide();
+    }
+
     Logs.init();
     Gestao.init();
     Tratamento.init();
     initTabs();
     setActiveTab('gestao');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    appShell = document.getElementById('appShell');
+
+    if (Login && typeof Login.init === 'function') {
+      Login.init({
+        onAuthenticated: bootstrapApp,
+      });
+    }
+
+    if (Auth && typeof Auth.hasCredentials === 'function' && Auth.hasCredentials()) {
+      bootstrapApp();
+    }
   });
 })(window);

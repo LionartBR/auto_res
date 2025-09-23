@@ -15,23 +15,38 @@
     aria-modal="true"
     aria-labelledby="loginTitle"
   >
-    <form id="loginForm" class="login-card" aria-describedby="loginDescription" novalidate>
-      <h2 id="loginTitle">Acessar o SIREP 2.0</h2>
-      <p id="loginDescription" class="login-description">
-        Informe suas credenciais para acompanhar o processamento dos planos.
-      </p>
+    <form id="loginForm" class="login-card" novalidate>
+      <h2 id="loginTitle">SIREP 2.0</h2>
       <div class="login-field">
-        <label for="loginUser">Usuário</label>
-        <input type="text" id="loginUser" name="username" autocomplete="username" required />
+        <label for="loginUser">Matrícula</label>
+        <input
+          type="text"
+          id="loginUser"
+          name="username"
+          autocomplete="username"
+          placeholder="C123456"
+          required
+        />
       </div>
       <div class="login-field">
         <label for="loginPassword">Senha</label>
-        <input type="password" id="loginPassword" name="password" autocomplete="current-password" required />
+        <input
+          type="password"
+          id="loginPassword"
+          name="password"
+          class="with-icon"
+          autocomplete="current-password"
+          placeholder="Digite sua senha"
+          required
+        />
       </div>
       <p id="loginError" class="login-error" role="alert" aria-live="assertive" hidden></p>
       <div class="login-actions">
         <button type="submit" id="loginSubmit" class="primary login-submit">Entrar</button>
       </div>
+      <footer class="login-footer" aria-label="Informações institucionais">
+        <p>CEFGD/RJ – Recuperação de Débitos do FGTS Perante o Empregador</p>
+      </footer>
     </form>
   </div>
 

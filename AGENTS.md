@@ -24,7 +24,7 @@ e uma interface web estática.
 ## Stack e dependências
 - **Python**: 3.13 ou superior.
 - **Principais bibliotecas** (vide `sirep/pyproject.toml`): `fastapi`, `uvicorn`, `pydantic`, `pydantic-settings`,
-  `SQLAlchemy`, `tenacity`, `python-dotenv`, `tzdata`.
+  `SQLAlchemy`, `python-dotenv`, `tzdata`.
 - **Ferramentas de apoio para desenvolvimento/testes**: `pytest`, `pytest-asyncio`, `httpx`, `anyio`.
 - Ferramentas opcionais recomendadas: `ruff`, `black`, `mypy`, `pre-commit`.
 
@@ -56,7 +56,7 @@ e uma interface web estática.
    ```
 3. Instale as dependências de runtime manualmente (enquanto não temos pacote publicável):
    ```bash
-   pip install fastapi uvicorn pydantic "pydantic-settings" SQLAlchemy tenacity python-dotenv tzdata
+   pip install fastapi uvicorn pydantic "pydantic-settings" SQLAlchemy python-dotenv tzdata
    ```
 4. Instale ferramentas de teste/desenvolvimento:
    ```bash

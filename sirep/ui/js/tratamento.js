@@ -233,10 +233,14 @@
           cnpjCell = `<a class="copy" data-copy="${primaryCnpj}" data-copy-type="cnpj" href="#">${primaryCnpj}</a>${extraInfo}`;
         }
 
-        const situacao = plan.status ? formatTreatmentStatus(plan.status) : '—';
-        const dtSituacao = plan.rescisao_data ? formatDateBR(plan.rescisao_data) : '—';
+        const tipoRaw = plan.tipo ? String(plan.tipo).trim() : '';
+        const tipo = tipoRaw || '—';
+        const situacaoAtual = plan.situacao_atual ? String(plan.situacao_atual).trim() : '';
+        const situacao = situacaoAtual || (plan.status ? formatTreatmentStatus(plan.status) : '—');
+        const dtSituacaoValor = plan.dt_situacao_atual || plan.rescisao_data;
+        const dtSituacaoFormatada = dtSituacaoValor ? formatDateBR(dtSituacaoValor) : '';
+        const dtSituacao = dtSituacaoFormatada || '—';
         const btn = `<button class="btn-link" data-action="download-notepad" data-plan-id="${plan.id}" data-numero="${plan.numero_plano}">Dados (.txt)</button>`;
-        const tipo = Array.isArray(plan.bases) && plan.bases.length ? plan.bases.join(', ') : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${numeroPlanoCell}</td>

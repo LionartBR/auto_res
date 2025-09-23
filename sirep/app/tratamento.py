@@ -6,11 +6,14 @@ import random
 import string
 import threading
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional, Literal, Sequence
+from typing import Any, List, Optional, Literal, Sequence
+
+from sqlalchemy import select
 
 from sirep.app.async_loop import AsyncLoopMixin
 from sirep.domain.enums import PlanStatus
-from sirep.domain.models import TreatmentPlan
+from sirep.domain.models import Plan, TreatmentPlan
+from sirep.domain.schemas import PlanOut
 from sirep.infra.db import SessionLocal
 from sirep.infra.repositories import (
     PlanRepository,
@@ -680,16 +683,27 @@ class TratamentoService(AsyncLoopMixin):
 
     # ---- consultas ----
     def status(self) -> dict:
+        plan_map: dict[int, dict[str, Any]] = {}
         with SessionLocal() as db:
             treatment_repo = TreatmentPlanRepository(db)
             log_repo = PlanLogRepository(db)
             planos = treatment_repo.list_all()
             logs = log_repo.recentes(limit=40, contexto="tratamento")
 
+            plan_ids = {plano.plan_id for plano in planos if plano.plan_id is not None}
+            if plan_ids:
+                stmt = select(Plan).where(Plan.id.in_(plan_ids))
+                plan_rows = db.scalars(stmt).all()
+                plan_map = {
+                    plan.id: PlanOut.model_validate(plan).model_dump(mode="json")
+                    for plan in plan_rows
+                }
+
         self._restore_pending_queue(planos)
 
         planos_data = []
         for plano in planos:
+            plan_info = plan_map.get(plano.plan_id) or {}
             planos_data.append(
                 {
                     "id": plano.id,
@@ -702,6 +716,11 @@ class TratamentoService(AsyncLoopMixin):
                     "cnpjs": plano.cnpjs,
                     "bases": plano.bases,
                     "rescisao_data": plano.rescisao_data.isoformat() if plano.rescisao_data else None,
+                    "tipo": plan_info.get("tipo"),
+                    "situacao_atual": plan_info.get("situacao_atual"),
+                    "dt_situacao_atual": plan_info.get("dt_situacao_atual"),
+                    "saldo": plan_info.get("saldo"),
+                    "cnpj": plan_info.get("cnpj") or plan_info.get("representacao"),
                     "etapas": plano.etapas,
                 }
             )

@@ -23,6 +23,7 @@ from sirep.domain.logs import (
 )
 from sirep.shared.fakes import (
     TIPOS_PARCELAMENTO,
+    TIPOS_REPRESENTACAO,
     gerar_bases,
     gerar_cnpjs,
     gerar_periodo,
@@ -83,10 +84,10 @@ class TratamentoService(AsyncLoopMixin):
                 plan = plans_repo.upsert(
                     numero_plano=numero,
                     gifug=random.choice(["RJ", "SP", "MG", "BA", "RS"]),
-                    situacao_atual="P. RESC",
-                    situacao_anterior="P. RESC",
+                    situacao_atual="P.RESC.",
+                    situacao_anterior="P.RESC.",
                     dias_em_atraso=random.randint(30, 180),
-                    tipo=random.choice(["ADM", "INS", "JUD", "AI", "AJ"]),
+                    tipo=random.choice(TIPOS_REPRESENTACAO),
                     dt_situacao_atual=date.today() - timedelta(days=random.randint(10, 90)),
                     saldo=float(random.randint(5_000, 60_000)),
                     status=PlanStatus.PASSIVEL_RESC,
@@ -648,6 +649,7 @@ class TratamentoService(AsyncLoopMixin):
         if plan is None:
             return
         plan.situacao_atual = "RESCINDIDO"
+        plan.dt_situacao_atual = hoje
         plan.status = PlanStatus.RESCINDIDO
         plan.data_rescisao = hoje
         treatment.rescisao_data = hoje

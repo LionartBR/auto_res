@@ -17,13 +17,12 @@ from sirep.infra.repositories import (
     PlanLogRepository,
 )
 from sirep.domain.logs import GESTAO_STAGE_LABELS, infer_gestao_stage_numero
-from sirep.shared.fakes import gerar_razao_social
+from sirep.shared.fakes import TIPOS_REPRESENTACAO, gerar_razao_social
 from sirep.domain.enums import PlanStatus, Step
 
 logger = logging.getLogger(__name__)
 
 Estado = Literal["ocioso", "executando", "pausado", "concluido"]
-TIPOS = ("ADM", "INS", "JUD", "AI", "AJ")
 SITS_ALT = ("SIT ESPECIAL", "LIQUIDADO", "RESCINDIDO", "GRDE Emitida")
 
 @dataclass
@@ -383,7 +382,7 @@ class CapturaService(AsyncLoopMixin):
             cnpj = self._gerar_cnpj()
             saldo = round(random.uniform(1_000, 150_000), 2)
             hoje: date = datetime.now(timezone.utc).date()
-            tipo = random.choice(TIPOS)
+            tipo = random.choice(TIPOS_REPRESENTACAO)
 
             await self._sleep_with_pause(random.uniform(self._step_min, self._step_max))
             await self._wait_resume()
@@ -508,8 +507,8 @@ class CapturaService(AsyncLoopMixin):
                 p = plans.upsert(
                     numero_plano=numero_plano,
                     gifug="MZ",
-                    situacao_atual="P. RESC",
-                    situacao_anterior="P. RESC",
+                    situacao_atual="P.RESC.",
+                    situacao_anterior="P.RESC.",
                     dias_em_atraso=random.randint(90, 120),
                     tipo=tipo,
                     dt_situacao_atual=hoje,

@@ -17,7 +17,7 @@ from .base import (
 
 
 class Etapa1Captura:
-    """Captura planos P. RESC, exclui 974/20, busca saldo e carrega no SIREP."""
+    """Captura planos P.RESC., exclui 974/20, busca saldo e carrega no SIREP."""
     def __init__(self, fge: FGEAdapter, sirep: SirepAdapter):
         self.fge, self.sirep = fge, sirep
 
@@ -37,8 +37,8 @@ class Etapa1Captura:
                     {
                         "CARTEIRA": numero,
                         "GIFUG": "MZ",
-                        "SITUACAO_ATUAL": "P. RESC",
-                        "SITUACAO_ANTERIOR": "P. RESC",
+                        "SITUACAO_ATUAL": "P.RESC.",
+                        "SITUACAO_ANTERIOR": "P.RESC.",
                         "DIAS_EM_ATRASO": "100",
                         "TIPO": tipo,
                         "DT_SITUACAO_ATUAL": hoje.isoformat(),
@@ -54,8 +54,8 @@ class Etapa1Captura:
                 plan = context.plans.upsert(
                     numero_plano=numero,
                     gifug="MZ",
-                    situacao_atual="P. RESC",
-                    situacao_anterior="P. RESC",
+                    situacao_atual="P.RESC.",
+                    situacao_anterior="P.RESC.",
                     dias_em_atraso=100,
                     tipo=tipo,
                     dt_situacao_atual=hoje,
@@ -69,7 +69,7 @@ class Etapa1Captura:
                     tipo_parcelamento=tipo,
                     saldo_total=saldo,
                 )
-                context.events.log(plan.id, Step.ETAPA_1, "Capturado plano P. RESC")
+                context.events.log(plan.id, Step.ETAPA_1, "Capturado plano P.RESC.")
 
             self.sirep.carga_complementar(linhas)
             return StepJobOutcome(
@@ -239,7 +239,7 @@ class Etapa9PIGLancamento:
 
 
 class Etapa10SituacaoPlano:
-    """Revalida situação do plano (bloqueia se deixou de ser P. RESC)."""
+    """Revalida situação do plano (bloqueia se deixou de ser P.RESC.)."""
     def __init__(self, fge: FGEAdapter, sirep: SirepAdapter):
         self.fge, self.sirep = fge, sirep
 

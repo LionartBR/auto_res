@@ -254,7 +254,7 @@ async def captura_status():
         ocorrencias_total = db.query(DiscardedPlan).count()
         total = db.query(Plan).count()
         total_passiveis = (
-            db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
+            db.query(Plan).filter(Plan.situacao_atual == "P.RESC.").count()
         )
     progresso_total = captura.progresso_percentual()
     return {
@@ -302,7 +302,7 @@ def captura_planos(pagina: int = 1, tamanho: int = 10):
             for plan in raw_items
         ]
         total_passiveis = (
-            db.query(Plan).filter(Plan.situacao_atual == "P. RESC").count()
+            db.query(Plan).filter(Plan.situacao_atual == "P.RESC.").count()
         )
         return {"items": items, "total": total, "total_passiveis": total_passiveis}
 

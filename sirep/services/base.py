@@ -89,6 +89,14 @@ def run_step_job(
         else:
             resolved_hash = input_hash
 
+        if isinstance(job_name, Step):
+            resolved_job_name = job_name.name
+        else:
+            resolved_job_name = job_name
+        if resolved_job_name is None:
+            resolved_job_name = step.name
+        job = jobs.start(
+            job_name=resolved_job_name,
         resolved_job_name = job_name.name if isinstance(job_name, Step) else job_name
         default_job_name = step.name if isinstance(step, Step) else str(step)
         job = jobs.start(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
 from datetime import date, datetime, time, timezone
 from io import BytesIO
 from pathlib import Path
@@ -18,12 +19,27 @@ from xml.sax.saxutils import escape
 
 from sirep import __version__
 from sirep.app.captura import captura
+from sirep.app.steps import (
+    default_step_sequence,
+    deduplicate_steps,
+    list_step_metadata,
+    metadata_for_step,
+    parse_step_codes,
+)
 from sirep.app.tratamento import tratamento
 from sirep.domain.models import DiscardedPlan, Plan
-from sirep.domain.schemas import DiscardedPlanOut, PlanOut
+from sirep.domain.schemas import (
+    DiscardedPlanOut,
+    PipelineRunItem,
+    PipelineRunRequest,
+    PipelineRunResponse,
+    PlanOut,
+    StepMetadataOut,
+)
 from sirep.infra.db import SessionLocal, init_db
 from sirep.infra.logging import setup_logging
 from sirep.services.notepad import build_notepad_txt
+from sirep.services.orchestrator import Orchestrator
 from sirep.infra.repositories import PlanLogRepository, TreatmentPlanRepository
 
 logger = logging.getLogger(__name__)
@@ -385,6 +401,66 @@ def tratamentos_rescindidos_txt(
         response = PlainTextResponse(conteudo, media_type="text/plain; charset=utf-8")
         response.headers["Content-Disposition"] = 'attachment; filename="Rescindidos_CNPJ.txt"'
         return response
+
+
+# ---- Pipeline / Etapas ----
+
+
+@app.get("/pipeline/steps")
+def pipeline_steps():
+    metadata = list_step_metadata()
+    items = [
+        StepMetadataOut(
+            code=meta.code,
+            label=meta.label,
+            category=meta.category,
+            order=meta.order,
+            stage=meta.stage,
+        ).model_dump(mode="json")
+        for meta in metadata
+    ]
+    return {"items": items, "count": len(items)}
+
+
+@app.post("/pipeline/run")
+def pipeline_run(request: PipelineRunRequest) -> dict:
+    raw_steps = request.steps
+    try:
+        if raw_steps:
+            steps = parse_step_codes(raw_steps)
+        else:
+            steps = default_step_sequence()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    steps = deduplicate_steps(steps)
+    if not steps:
+        raise HTTPException(status_code=400, detail="Nenhuma etapa válida informada.")
+
+    orchestrator = Orchestrator()
+    results = orchestrator.run_steps(steps)
+
+    items: list[PipelineRunItem] = []
+    for step in steps:
+        meta = metadata_for_step(step)
+        result_payload = results.get(step, {})
+        if isinstance(result_payload, Mapping):
+            payload = dict(result_payload)
+        else:
+            payload = {"result": result_payload}
+        items.append(
+            PipelineRunItem(
+                code=meta.code,
+                label=meta.label,
+                category=meta.category,
+                order=meta.order,
+                stage=meta.stage,
+                result=payload,
+            )
+        )
+
+    response = PipelineRunResponse(count=len(items), items=items)
+    return response.model_dump(mode="json")
 
 
 @app.get("/logs")

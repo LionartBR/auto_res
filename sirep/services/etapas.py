@@ -245,7 +245,9 @@ class Etapa10SituacaoPlano:
 
     def execute(self) -> ServiceResult:
         with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
+            plans = PlanRepository(db)
+            events = EventRepository(db)
+            jobs = JobRunRepository(db)
             ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
             job = jobs.start(
                 job_name=Step.ETAPA_10,
@@ -270,7 +272,9 @@ class Etapa11Rescisao:
         rescindidos_cnpj: List[str] = []
         rescindidos_cei: List[str] = []
         with unit_of_work() as db:
-            plans = PlanRepository(db); events = EventRepository(db); jobs = JobRunRepository(db)
+            plans = PlanRepository(db)
+            events = EventRepository(db)
+            jobs = JobRunRepository(db)
             ativos = plans.list_by_status(PlanStatus.PASSIVEL_RESC)
             job = jobs.start(
                 job_name=Step.ETAPA_11,
@@ -304,7 +308,7 @@ class Etapa12Comunicacao:
         cnpj: List[str] = []
         try:
             with open("Rescindidos_CNPJ.txt", "r", encoding="utf-8") as f:
-                cnpj = [l.strip() for l in f if l.strip()]
+                cnpj = [line.strip() for line in f if line.strip()]
         except FileNotFoundError:
             return {"status": "SKIPPED", "motivo": "sem rescindidos"}
         recibos = self.cns.enviar_comunicacao(

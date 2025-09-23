@@ -1,5 +1,4 @@
 from sirep.app.captura import CapturaService
-from sirep.app.captura import CapturaService
 from sirep.domain.models import PlanLog
 from sirep.infra.db import SessionLocal, init_db
 
@@ -62,3 +61,4 @@ def test_historico_carregado_mantem_fuso_horario():
     timestamp = status.historico[-1].timestamp
     assert timestamp.endswith("+00:00")
     assert status.ultima_atualizacao.endswith("+00:00")
+

@@ -1,5 +1,25 @@
 from __future__ import annotations
 
+import os
+from sirep.infra.config import settings
+from sirep.infra.db import get_engine
+
+def is_sqlite_file(url: str) -> str | None:
+    if url.startswith("sqlite:///"):
+        path = url.replace("sqlite:///", "", 1)
+        return os.path.abspath(path)
+    return None
+
+def main():
+    sqlite_path = is_sqlite_file(settings.DB_URL)
+    if sqlite_path:
+        if os.path.exists(sqlite_path):
+            os.remove(sqlite_path)
+            print(f"[reset-db] removido arquivo SQLite: {sqlite_path}")
+        else:
+            print(f"[reset-db] arquivo SQLite já não existe: {sqlite_path}")
+
+
 from pathlib import Path
 from typing import Final
 
@@ -37,6 +57,7 @@ def remove_sqlite_file(path: Path) -> None:
         path.unlink()
     except FileNotFoundError:
         print(f"[reset-db] arquivo SQLite já não existe: {path}")
+
     else:
         print(f"[reset-db] removido arquivo SQLite: {path}")
 

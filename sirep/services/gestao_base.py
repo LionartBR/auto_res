@@ -297,12 +297,12 @@ def enrich_on_e570(pw: PW3270, rows: Iterable[PlanRow]) -> List[PlanRowEnriched]
 
 
 def portal_po_provider() -> List[dict]:  # pragma: no cover - integração real
-    import requests
+    import httpx
 
     url = "https://seu-endpoint"
     payload = {"exemplo": 123}
 
-    resp = requests.post(url, data=payload, timeout=60, verify=False)
+    resp = httpx.post(url, data=payload, timeout=60, verify=False)
     return parse_portal_po_json(resp.text)
 
 
@@ -543,43 +543,7 @@ def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, in
     }
 def _clean_inscricao(raw: str) -> str:
     texto = (raw or "").strip()
-    return texto
-
-
-def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, int]:
-    inseridos = 0
-    hoje = datetime.now(UTC).date()
-    for row in data.rows:
-        dt_proposta = parse_date_any(row.dt_propost)
-        saldo_raw = parse_money_brl(row.saldo_total)
-        saldo = None if math.isnan(saldo_raw) else saldo_raw
-        inscricao = _clean_inscricao(row.cnpj)
-        plan = context.plans.upsert(
-            numero_plano=row.numero,
-            gifug=None,
-            situacao_atual=row.situac or None,
-            situacao_anterior=row.situac or None,
-            tipo=row.tipo or None,
-            dt_situacao_atual=hoje,
-            dt_proposta=dt_proposta,
-            saldo=saldo,
-            resolucao=row.resoluc or None,
-            razao_social=row.razao_social or None,
-            numero_inscricao=inscricao or None,
-            representacao=inscricao or None,
-            status=PlanStatus.PASSIVEL_RESC,
-        )
-        context.events.log(
-            plan.id,
-            Step.ETAPA_1,
-            "Plano importado via Gestão da Base",
-        )
-        inseridos += 1
-    return {
-        "importados": inseridos,
-        "descartados_974": data.descartados_974,
-        "portal_po": len(data.portal_po),
-    }
+    return re.sub(r"\D", "", texto)
 
 
 def _sample_data() -> GestaoBaseData:
@@ -588,7 +552,6 @@ def _sample_data() -> GestaoBaseData:
             numero="1234567890",
             dt_propost="01/02/2024",
             tipo="PR1",
-            tipo="ADM",
             situac="P.RESC.",
             resoluc="123/45",
             razao_social="Empresa Alfa Ltda",

@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 from hashlib import md5
 from time import sleep
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
+from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.config import settings
@@ -538,6 +539,43 @@ def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, in
         "importados": processados,
         "novos": novos,
         "atualizados": atualizados,
+
+def _clean_inscricao(raw: str) -> str:
+    texto = (raw or "").strip()
+    return texto
+
+
+def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, int]:
+    inseridos = 0
+    hoje = datetime.now(UTC).date()
+    for row in data.rows:
+        dt_proposta = parse_date_any(row.dt_propost)
+        saldo_raw = parse_money_brl(row.saldo_total)
+        saldo = None if math.isnan(saldo_raw) else saldo_raw
+        inscricao = _clean_inscricao(row.cnpj)
+        plan = context.plans.upsert(
+            numero_plano=row.numero,
+            gifug=None,
+            situacao_atual=row.situac or None,
+            situacao_anterior=row.situac or None,
+            tipo=row.tipo or None,
+            dt_situacao_atual=hoje,
+            dt_proposta=dt_proposta,
+            saldo=saldo,
+            resolucao=row.resoluc or None,
+            razao_social=row.razao_social or None,
+            numero_inscricao=inscricao or None,
+            representacao=inscricao or None,
+            status=PlanStatus.PASSIVEL_RESC,
+        )
+        context.events.log(
+            plan.id,
+            Step.ETAPA_1,
+            "Plano importado via Gestão da Base",
+        )
+        inseridos += 1
+    return {
+        "importados": inseridos,
         "descartados_974": data.descartados_974,
         "portal_po": len(data.portal_po),
     }
@@ -549,6 +587,7 @@ def _sample_data() -> GestaoBaseData:
             numero="1234567890",
             dt_propost="01/02/2024",
             tipo="PR1",
+            tipo="ADM",
             situac="P.RESC.",
             resoluc="123/45",
             razao_social="Empresa Alfa Ltda",
@@ -611,6 +650,7 @@ class GestaoBaseService:
             data = collector.collect()
             resultado = _persist_rows(context, data)
             summary = _format_summary(resultado)
+            summary = f"{resultado['importados']} planos"
             return StepJobOutcome(data=resultado, info_update={"summary": summary})
 
         return run_step_job(step=Step.ETAPA_1, job_name=Step.ETAPA_1, callback=_run)

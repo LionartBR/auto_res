@@ -19,6 +19,7 @@
   function formatCnpjDisplay(cnpjs, options = {}) {
     const { enableCopy = true, prefer } = options;
     const entries = [];
+    const entryByDigits = new Map();
 
     const escapeAttr = (value) =>
       String(value ?? '')
@@ -33,7 +34,6 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
-
     const formatCnpjDigits = (digits) => {
       const clean = String(digits || '').replace(/\D+/g, '');
       if (clean.length !== 14) {
@@ -42,109 +42,70 @@
       return `${clean.slice(0, 2)}.${clean.slice(2, 5)}.${clean.slice(5, 8)}/${clean.slice(8, 12)}-${clean.slice(12)}`;
     };
 
-    const extractCnpjCandidates = (value) => {
-      const rawValue = String(value ?? '').trim();
-      if (!rawValue) {
+    const collectCandidates = (rawValue) => {
+      const value = String(rawValue ?? '').trim();
+      if (!value) {
         return [];
       }
 
-      const normalized = rawValue.replace(/\r\n/g, ' ').replace(/\s+/g, ' ');
-      const formattedMatches = [];
-      const formattedPattern = /\d{2}(?:\.\d{3}){2}\/\d{4}-\d{2}/g;
-      let formattedMatch;
-      while ((formattedMatch = formattedPattern.exec(normalized)) !== null) {
-        formattedMatches.push(formattedMatch[0]);
-      }
+      const normalized = value.replace(/\r\n/g, ' ').replace(/\s+/g, ' ');
+      const formattedMatches = normalized.match(/\d{2}(?:\.\d{3}){2}\/\d{4}-\d{2}/g) || [];
+      const compactMatches = normalized.match(/\d{14}/g) || [];
 
-      const compactMatches = [];
-      const compactPattern = /\d{14}/g;
-      let compactMatch;
-      while ((compactMatch = compactPattern.exec(normalized)) !== null) {
-        const formatted = formatCnpjDigits(compactMatch[0]);
+      const candidates = [...formattedMatches];
+      compactMatches.forEach((match) => {
+        const formatted = formatCnpjDigits(match);
         if (formatted) {
-          compactMatches.push(formatted);
+          candidates.push(formatted);
+        }
+      });
+
+      if (!candidates.length) {
+        const formatted = formatCnpjDigits(value);
+        if (formatted) {
+          candidates.push(formatted);
         }
       }
 
-      const combined = [...formattedMatches, ...compactMatches];
-      if (combined.length) {
-        const seen = new Set();
-        const results = [];
-        combined.forEach((candidate) => {
-          const digits = candidate.replace(/\D+/g, '');
-          if (digits.length !== 14 || seen.has(digits)) {
-            return;
-          }
-          seen.add(digits);
-          const formatted = formatCnpjDigits(digits) || candidate;
-          results.push(formatted);
-        });
-        if (results.length) {
-          return results;
-        }
-      }
-
-      const fallbackFormatted = formatCnpjDigits(rawValue);
-      if (fallbackFormatted) {
-        return [fallbackFormatted];
-      }
-      return [];
+      return candidates;
     };
 
-    const addEntry = (value) => {
-      const candidates = extractCnpjCandidates(value);
+    const addEntry = (rawValue) => {
+      const candidates = collectCandidates(rawValue);
       if (!candidates.length) {
         return null;
       }
 
-      let firstEntry = null;
+      let first = null;
       candidates.forEach((candidate) => {
         const digits = candidate.replace(/\D+/g, '');
-        if (!digits) {
+        if (digits.length !== 14) {
           return;
         }
-        let entry = entries.find((item) => item.digits === digits);
+        let entry = entryByDigits.get(digits);
         if (!entry) {
           entry = { raw: candidate, digits };
+          entryByDigits.set(digits, entry);
           entries.push(entry);
         }
-        if (!firstEntry) {
-          firstEntry = entry;
+        if (!first) {
+          first = entry;
         }
       });
 
-      return firstEntry;
-
-    const addEntry = (value) => {
-      const raw = String(value ?? '').trim();
-      if (!raw) {
-        return null;
-      }
-      const digits = raw.replace(/\D+/g, '');
-      if (!digits) {
-        return null;
-      }
-      const existing = entries.find((entry) => entry.digits === digits);
-      if (existing) {
-        return existing;
-      }
-      const entry = { raw, digits };
-      entries.push(entry);
-      return entry;
-
+      return first;
     };
-
-    if (Array.isArray(cnpjs)) {
-      cnpjs.forEach((value) => {
-        addEntry(value);
-      });
-    }
 
     let primary = null;
     const preferStr = typeof prefer === 'string' ? prefer.trim() : '';
     if (preferStr) {
       primary = addEntry(preferStr);
     }
+
+    const values = Array.isArray(cnpjs) ? cnpjs : [cnpjs];
+    values.forEach((value) => {
+      addEntry(value);
+    });
 
     if (!primary && entries.length) {
       [primary] = entries;
@@ -158,24 +119,6 @@
     if (primaryIndex > 0) {
       entries.splice(primaryIndex, 1);
       entries.unshift(primary);
-    }
-
-    const extras = entries.slice(1);
-
-    const renderPrimary = () => {
-      if (!enableCopy) {
-        return escapeHtml(primary.raw);
-      }
-      const copyValue = escapeAttr(primary.raw);
-      const label = escapeHtml(primary.raw);
-      return `<a class="copy" data-copy="${copyValue}" data-copy-type="cnpj" href="#">${label}</a>`;
-    };
-
-    if (!extras.length) {
-      return renderPrimary();
-    }
-
-
     }
 
     const extras = entries.slice(1);

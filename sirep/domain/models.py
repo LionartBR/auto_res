@@ -26,14 +26,15 @@ class Plan(Base):
     dias_em_atraso = Column(Integer, nullable=True)
     tipo = Column(String(8), nullable=True)
     dt_situacao_atual = Column(Date, nullable=True)
+    dt_proposta = Column(Date, nullable=True)
     saldo = Column(Float, nullable=True)
     cmb_ajuste = Column(String(64), nullable=True)
     justificativa = Column(String(255), nullable=True)
     matricula = Column(String(64), nullable=True)
     dt_parcela_atraso = Column(Date, nullable=True)
     representacao = Column(String(64), nullable=True)
-    tipo_parcelamento = Column(String(8), nullable=True)
-    saldo_total = Column(Float, nullable=True)
+    resolucao = Column(String(32), nullable=True)
+    numero_inscricao = Column(String(32), nullable=True)
     status = Column(String(16), nullable=True)
     data_rescisao = Column(Date, nullable=True)
     data_comunicacao = Column(Date, nullable=True)
@@ -41,6 +42,14 @@ class Plan(Base):
     referencia_comunicacao = Column(String(128), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    @property
+    def cnpj(self) -> str | None:
+        return self.numero_inscricao
+
+    @cnpj.setter
+    def cnpj(self, value: str | None) -> None:
+        self.numero_inscricao = value
 
 class Event(Base):
     __tablename__ = "events"

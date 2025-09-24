@@ -74,15 +74,16 @@ class Etapa1Captura:
                     dias_em_atraso=100,
                     tipo=tipo,
                     dt_situacao_atual=hoje,
+                    dt_proposta=hoje,
                     saldo=saldo,
                     cmb_ajuste="",
                     justificativa="",
                     matricula="",
                     dt_parcela_atraso=None,
                     representacao=cnpj,
+                    numero_inscricao=cnpj,
+                    resolucao="",
                     status=PlanStatus.PASSIVEL_RESC,
-                    tipo_parcelamento=tipo,
-                    saldo_total=saldo,
                 )
                 context.events.log(plan.id, Step.ETAPA_1, "Capturado plano P.RESC.")
 

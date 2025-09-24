@@ -33,6 +33,7 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+
     const formatCnpjDigits = (digits) => {
       const clean = String(digits || '').replace(/\D+/g, '');
       if (clean.length !== 14) {
@@ -113,6 +114,24 @@
       });
 
       return firstEntry;
+
+    const addEntry = (value) => {
+      const raw = String(value ?? '').trim();
+      if (!raw) {
+        return null;
+      }
+      const digits = raw.replace(/\D+/g, '');
+      if (!digits) {
+        return null;
+      }
+      const existing = entries.find((entry) => entry.digits === digits);
+      if (existing) {
+        return existing;
+      }
+      const entry = { raw, digits };
+      entries.push(entry);
+      return entry;
+
     };
 
     if (Array.isArray(cnpjs)) {
@@ -139,6 +158,24 @@
     if (primaryIndex > 0) {
       entries.splice(primaryIndex, 1);
       entries.unshift(primary);
+    }
+
+    const extras = entries.slice(1);
+
+    const renderPrimary = () => {
+      if (!enableCopy) {
+        return escapeHtml(primary.raw);
+      }
+      const copyValue = escapeAttr(primary.raw);
+      const label = escapeHtml(primary.raw);
+      return `<a class="copy" data-copy="${copyValue}" data-copy-type="cnpj" href="#">${label}</a>`;
+    };
+
+    if (!extras.length) {
+      return renderPrimary();
+    }
+
+
     }
 
     const extras = entries.slice(1);

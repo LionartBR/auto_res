@@ -75,6 +75,7 @@ class CapturaService(AsyncLoopMixin):
         self._step_max = 0.80
         self._history_limit = 200
         self._history_loaded = False
+        self._history_retry_at: Optional[datetime] = None
         self._last_progress_message: Optional[str] = None
         self._last_progress_percent: float = 0.0
 
@@ -107,6 +108,7 @@ class CapturaService(AsyncLoopMixin):
         self._pause_evt = None
         self._stop_evt = None
         self._history_loaded = False
+        self._history_retry_at = None
         self._total_alvos = self._default_total_alvos
         self._last_progress_message = None
         self._last_progress_percent = 0.0
@@ -483,22 +485,92 @@ class CapturaService(AsyncLoopMixin):
             status=status_norm,
             etapa_nome=etapa_nome,
         )
+        persist_args = (
+            numero_norm or None,
+            mensagem,
+            status_norm,
+            etapa_numero,
+            etapa_nome,
+            timestamp_dt,
+        )
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            loop.create_task(self._persistir_historico_async(*persist_args))
+        else:
+            self._persistir_historico_sync(*persist_args)
+
+        historico = self._status.historico
+        historico.append(evento)
+        if len(historico) > self._history_limit:
+            del historico[: len(historico) - self._history_limit]
+        self._status.ultima_atualizacao = timestamp
+
+    async def _persistir_historico_async(
+        self,
+        numero_plano: Optional[str],
+        mensagem: str,
+        status: str,
+        etapa_numero: Optional[int],
+        etapa_nome: Optional[str],
+        created_at: datetime,
+    ) -> bool:
         tentativa = 0
         while True:
             try:
-                with SessionLocal() as db:
-                    repo = PlanLogRepository(db)
-                    repo.add(
-                        contexto="gestao",
-                        numero_plano=numero_norm or None,
-                        mensagem=mensagem,
-                        status=status_norm,
-                        etapa_numero=etapa_numero,
-                        etapa_nome=etapa_nome,
-                        created_at=timestamp_dt,
+                await asyncio.to_thread(
+                    self._persistir_historico_once,
+                    numero_plano,
+                    mensagem,
+                    status,
+                    etapa_numero,
+                    etapa_nome,
+                    created_at,
+                )
+                return True
+            except OperationalError as exc:
+                mensagem_erro = str(exc).lower()
+                if "database is locked" in mensagem_erro and tentativa < 4:
+                    tentativa += 1
+                    espera = min(0.5, 0.1 * tentativa)
+                    logger.warning(
+                        "banco bloqueado ao registrar histórico; aguardando %.2fs (tentativa %s)",
+                        espera,
+                        tentativa,
                     )
-                    db.commit()
-                break
+                    await asyncio.sleep(espera)
+                    continue
+                logger.exception("erro ao persistir histórico da captura")
+                return False
+            except Exception:
+                logger.exception("erro ao persistir histórico da captura")
+                return False
+
+    def _persistir_historico_sync(
+        self,
+        numero_plano: Optional[str],
+        mensagem: str,
+        status: str,
+        etapa_numero: Optional[int],
+        etapa_nome: Optional[str],
+        created_at: datetime,
+    ) -> bool:
+        tentativa = 0
+        while True:
+            try:
+                self._persistir_historico_once(
+                    numero_plano,
+                    mensagem,
+                    status,
+                    etapa_numero,
+                    etapa_nome,
+                    created_at,
+                )
+                return True
             except OperationalError as exc:
                 mensagem_erro = str(exc).lower()
                 if "database is locked" in mensagem_erro and tentativa < 4:
@@ -512,18 +584,38 @@ class CapturaService(AsyncLoopMixin):
                     time.sleep(espera)
                     continue
                 logger.exception("erro ao persistir histórico da captura")
-                break
+                return False
             except Exception:
                 logger.exception("erro ao persistir histórico da captura")
-                break
-        historico = self._status.historico
-        historico.append(evento)
-        if len(historico) > self._history_limit:
-            del historico[: len(historico) - self._history_limit]
-        self._status.ultima_atualizacao = timestamp
+                return False
+
+    def _persistir_historico_once(
+        self,
+        numero_plano: Optional[str],
+        mensagem: str,
+        status: str,
+        etapa_numero: Optional[int],
+        etapa_nome: Optional[str],
+        created_at: datetime,
+    ) -> None:
+        with SessionLocal() as db:
+            repo = PlanLogRepository(db)
+            repo.add(
+                contexto="gestao",
+                numero_plano=numero_plano,
+                mensagem=mensagem,
+                status=status,
+                etapa_numero=etapa_numero,
+                etapa_nome=etapa_nome,
+                created_at=created_at,
+            )
+            db.commit()
 
     def _ensure_history_loaded(self) -> None:
         if self._history_loaded:
+            return
+        retry_at = self._history_retry_at
+        if retry_at and datetime.now(timezone.utc) < retry_at:
             return
         try:
             with SessionLocal() as db:
@@ -535,6 +627,7 @@ class CapturaService(AsyncLoopMixin):
                 )
         except Exception:
             logger.exception("erro ao carregar histórico da captura")
+            self._history_retry_at = datetime.now(timezone.utc) + timedelta(seconds=5)
             return
 
         historico: List[PlanoHistorico] = []
@@ -558,6 +651,7 @@ class CapturaService(AsyncLoopMixin):
         if historico:
             self._status.ultima_atualizacao = historico[-1].timestamp
         self._history_loaded = True
+        self._history_retry_at = None
 
     async def _processar_plano(self, numero_plano: str) -> None:
         st = self._status

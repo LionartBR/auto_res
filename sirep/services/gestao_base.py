@@ -539,7 +539,7 @@ def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, in
         "importados": processados,
         "novos": novos,
         "atualizados": atualizados,
-
+    }
 def _clean_inscricao(raw: str) -> str:
     texto = (raw or "").strip()
     return texto

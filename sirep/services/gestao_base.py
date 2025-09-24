@@ -588,7 +588,6 @@ def _sample_data() -> GestaoBaseData:
             numero="1234567890",
             dt_propost="01/02/2024",
             tipo="PR1",
-            tipo="ADM",
             situac="P.RESC.",
             resoluc="123/45",
             razao_social="Empresa Alfa Ltda",

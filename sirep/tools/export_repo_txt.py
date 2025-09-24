@@ -24,7 +24,7 @@ from typing import Tuple
 IGNORE_DIRS = {".venv", "__pycache__", "sql", "tests", "txt_export", "logs"}
 
 # Arquivos específicos a ignorar (por nome exato)
-IGNORE_FILES = {"__init__.py", ".env", ".env.example", "pyproject.toml", "sirep.db", "export_repo_txt.py"}
+IGNORE_FILES = {"__init__.py", ".env", ".env.example", "pyproject.toml", "sirep.db", ".gitignore", "AGENTS.md"}
 
 # Extensões que normalmente são binárias e devem ser puladas
 LIKELY_BINARY_EXTS = {

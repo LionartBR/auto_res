@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .enums import PlanStatus
 
@@ -73,4 +73,8 @@ class PipelineRunItem(BaseModel):
 class PipelineRunResponse(BaseModel):
     count: int
     items: list[PipelineRunItem]
+
+
+class GestaoBasePasswordIn(BaseModel):
+    password: str = Field(..., repr=False, description="Senha utilizada na Gestão da Base.")
 

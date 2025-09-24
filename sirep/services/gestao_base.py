@@ -15,6 +15,7 @@ from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.config import settings
+from sirep.infra.runtime_credentials import get_gestao_base_password
 from sirep.services.base import ServiceResult, StepJobContext, StepJobOutcome, run_step_job
 
 logger = logging.getLogger(__name__)
@@ -637,16 +638,31 @@ class GestaoBaseService:
     def __init__(self, portal_provider: Optional[Callable[[], List[dict]]] = None) -> None:
         self.portal_provider = portal_provider or (portal_po_provider if not settings.DRY_RUN else None)
 
-    def _collector(self, senha: Optional[str]) -> GestaoBaseCollector:
-        if settings.DRY_RUN or senha is None:
+    def _collector(self, senha: Optional[str]) -> Optional[GestaoBaseCollector]:
+        if settings.DRY_RUN:
             return DryRunCollector()
-        return TerminalCollector(senha, self.portal_provider)
+
+        resolved = senha or get_gestao_base_password()
+        if not resolved:
+            logger.warning(
+                "Senha da Gestão da Base não disponível; execução será interrompida."
+            )
+            return None
+
+        return TerminalCollector(resolved, self.portal_provider)
 
     def execute(self, senha: Optional[str] = None) -> ServiceResult:
         """Executa a captura de Gestão da Base e persiste os registros."""
 
         def _run(context: StepJobContext) -> StepJobOutcome:
             collector = self._collector(senha)
+            if collector is None:
+                return StepJobOutcome(
+                    data={"error": "Senha da Gestão da Base não configurada."},
+                    status="FAILED",
+                    info_update={"summary": "Execução bloqueada por falta de senha"},
+                )
+
             data = collector.collect()
             resultado = _persist_rows(context, data)
             summary = _format_summary(resultado)

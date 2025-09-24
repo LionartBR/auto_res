@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
@@ -40,7 +41,12 @@ def init_db() -> None:
         "data_comunicacao": "ALTER TABLE plans ADD COLUMN data_comunicacao DATE",
         "metodo_comunicacao": "ALTER TABLE plans ADD COLUMN metodo_comunicacao VARCHAR(16)",
         "referencia_comunicacao": "ALTER TABLE plans ADD COLUMN referencia_comunicacao VARCHAR(128)",
+        "dt_proposta": "ALTER TABLE plans ADD COLUMN dt_proposta DATE",
+        "resolucao": "ALTER TABLE plans ADD COLUMN resolucao VARCHAR(32)",
+        "numero_inscricao": "ALTER TABLE plans ADD COLUMN numero_inscricao VARCHAR(32)",
     }
+
+    columns_to_drop = ("tipo_parcelamento", "saldo_total")
 
     with _engine.begin() as conn:
         info = conn.execute(text("PRAGMA table_info(plans)")).fetchall()
@@ -49,3 +55,10 @@ def init_db() -> None:
         for column, ddl in legacy_columns.items():
             if column not in existing:
                 conn.execute(text(ddl))
+
+        for column in columns_to_drop:
+            if column in existing:
+                try:
+                    conn.execute(text(f"ALTER TABLE plans DROP COLUMN {column}"))
+                except OperationalError:
+                    pass

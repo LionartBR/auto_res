@@ -5,7 +5,7 @@ import logging
 import random
 import traceback
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Dict, List, Literal, Optional
 
 from sirep.app.async_loop import AsyncLoopMixin
@@ -512,15 +512,16 @@ class CapturaService(AsyncLoopMixin):
                     dias_em_atraso=random.randint(90, 120),
                     tipo=tipo,
                     dt_situacao_atual=hoje,
+                    dt_proposta=hoje - timedelta(days=random.randint(30, 180)),
                     saldo=saldo,
                     cmb_ajuste="",
                     justificativa="",
                     matricula="",
                     dt_parcela_atraso=None,
                     representacao=cnpj,
+                    numero_inscricao=cnpj,
+                    resolucao=random.choice(["123/45", "456/78", "910/11"]),
                     status=PlanStatus.PASSIVEL_RESC,
-                    tipo_parcelamento=tipo,
-                    saldo_total=saldo,
                     razao_social=razao_social,
                 )
                 events.log(p.id, Step.ETAPA_1, "Capturado via simulação")

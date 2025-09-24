@@ -11,7 +11,6 @@ from datetime import UTC, date, datetime
 from hashlib import md5
 from time import sleep
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
-from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.config import settings
@@ -114,8 +113,11 @@ class GestaoBaseData:
     descartados_974: int
 
 
+ProgressCallback = Callable[[float, Optional[int], Optional[str]], None]
+
+
 class GestaoBaseCollector(Protocol):
-    def collect(self) -> GestaoBaseData: ...
+    def collect(self, progress: Optional[ProgressCallback] = None) -> GestaoBaseData: ...
 
 
 # ---------------------------- Helpers Terminais -----------------------------
@@ -368,8 +370,14 @@ def run_pipeline(
     pw: PW3270,
     senha: str,
     portal_provider: Optional[Callable[[], List[dict]]] = None,
+    *,
+    progress: Optional[ProgressCallback] = None,
 ) -> GestaoBaseData:  # pragma: no cover - integrações reais
+    if progress:
+        progress(5.0, None, "Estabelecendo sessão no terminal")
     login_fge(pw, senha)
+    if progress:
+        progress(10.0, None, "Captura da E555 iniciada")
     open_e555(pw)
 
     blocos = 0
@@ -403,6 +411,8 @@ def run_pipeline(
 
     dados_filtrados = [row for row in all_rows if row.resoluc != RESOLUCAO_DESCARTAR]
     descartados_974 = len(all_rows) - len(dados_filtrados)
+    if progress:
+        progress(25.0, 1, f"{len(dados_filtrados)} planos capturados na E555")
 
     portal_po: List[dict] = []
     if portal_provider:
@@ -412,6 +422,8 @@ def run_pipeline(
         except Exception as exc:
             logger.warning("Falha ao obter Portal PO: %s", exc)
             portal_po = []
+        if progress:
+            progress(35.0, 2, "Dados do Portal PO integrados")
 
     tipos_map = build_tipo_map(portal_po) if portal_po else {}
     dados_ajustados = (
@@ -422,8 +434,15 @@ def run_pipeline(
 
     open_e570(pw)
     enriched = enrich_on_e570(pw, dados_ajustados)
+    if progress:
+        progress(50.0, 3, "Enriquecimento na E570 concluído")
 
-    return GestaoBaseData(rows=enriched, raw_lines=raw_lines, portal_po=portal_po, descartados_974=descartados_974)
+    return GestaoBaseData(
+        rows=enriched,
+        raw_lines=raw_lines,
+        portal_po=portal_po,
+        descartados_974=descartados_974,
+    )
 
 
 # ------------------------------- Serviço -----------------------------------
@@ -478,13 +497,29 @@ def _format_summary(stats: dict[str, int]) -> str:
     return "Nenhum plano processado"
 
 
-def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, int]:
+def _persist_rows(
+    context: StepJobContext,
+    data: GestaoBaseData,
+    progress_callback: Optional[ProgressCallback] = None,
+) -> dict[str, int]:
     hoje = datetime.now(UTC).date()
     processados = 0
     novos = 0
     atualizados = 0
+    total_rows = len(data.rows)
 
-    for row in data.rows:
+    if progress_callback:
+        if total_rows:
+            progress_callback(55.0, 4, f"Persistindo {total_rows} planos capturados")
+        else:
+            progress_callback(55.0, 4, "Nenhum plano para persistir")
+
+    if not total_rows:
+        if progress_callback:
+            progress_callback(100.0, 4, "Persistência concluída")
+        return {"importados": 0, "novos": 0, "atualizados": 0}
+
+    for idx, row in enumerate(data.rows, start=1):
         processados += 1
         existente = context.plans.get_by_numero(row.numero)
         situacao = (row.situac or "").strip()
@@ -536,6 +571,13 @@ def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, in
             mensagem = "Plano atualizado via Gestão da Base"
         context.events.log(plan.id, Step.ETAPA_1, mensagem)
 
+        if progress_callback:
+            percentual = 55.0 + (idx / total_rows) * 45.0
+            progress_callback(percentual, None, None)
+
+    if progress_callback:
+        progress_callback(100.0, 4, "Persistência concluída")
+
     return {
         "importados": processados,
         "novos": novos,
@@ -576,8 +618,13 @@ def _sample_data() -> GestaoBaseData:
 
 
 class DryRunCollector(GestaoBaseCollector):
-    def collect(self) -> GestaoBaseData:
+    def collect(self, progress: Optional[ProgressCallback] = None) -> GestaoBaseData:
         logger.info("Executando coleta de Gestão da Base em modo dry-run")
+        if progress:
+            progress(10.0, None, "Captura simulada iniciada")
+            progress(35.0, 1, "Dados simulados coletados")
+            progress(50.0, 2, "Situação especial simulada aplicada")
+            progress(65.0, 3, "Dados simulados enriquecidos")
         return _sample_data()
 
 
@@ -588,11 +635,16 @@ class TerminalCollector(GestaoBaseCollector):  # pragma: no cover - integraçõe
         self.senha = senha
         self.portal_provider = portal_provider
 
-    def collect(self) -> GestaoBaseData:
+    def collect(self, progress: Optional[ProgressCallback] = None) -> GestaoBaseData:
         assert PW3270 is not None
         pw = PW3270()
         with session(pw):
-            return run_pipeline(pw, self.senha, portal_provider=self.portal_provider)
+            return run_pipeline(
+                pw,
+                self.senha,
+                portal_provider=self.portal_provider,
+                progress=progress,
+            )
 
 
 class GestaoBaseService:
@@ -620,7 +672,11 @@ class GestaoBaseService:
 
         return TerminalCollector(resolved, self.portal_provider)
 
-    def execute(self, senha: Optional[str] = None) -> ServiceResult:
+    def execute(
+        self,
+        senha: Optional[str] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> ServiceResult:
         """Executa a captura de Gestão da Base e persiste os registros."""
 
         def _run(context: StepJobContext) -> StepJobOutcome:
@@ -632,8 +688,11 @@ class GestaoBaseService:
                     info_update={"summary": "Execução bloqueada por falta de senha"},
                 )
 
-            data = collector.collect()
-            resultado = _persist_rows(context, data)
+            if progress_callback:
+                progress_callback(12.0, None, "Captura real da Gestão da Base iniciada")
+
+            data = collector.collect(progress_callback)
+            resultado = _persist_rows(context, data, progress_callback)
             summary = _format_summary(resultado)
             summary = f"{resultado['importados']} planos"
             return StepJobOutcome(data=resultado, info_update={"summary": summary})

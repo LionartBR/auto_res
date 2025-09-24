@@ -1,9 +1,11 @@
 import pytest
+from typing import Optional
 
 from sirep.domain.enums import PlanStatus
 from sirep.domain.models import Event, Plan
 from sirep.infra.config import settings
 from sirep.infra.db import SessionLocal, init_db
+
 from sirep.services.gestao_base import (
     GestaoBaseData,
     GestaoBaseService,
@@ -15,7 +17,7 @@ class _Collector:
     def __init__(self, data: GestaoBaseData) -> None:
         self._data = data
 
-    def collect(self) -> GestaoBaseData:
+    def collect(self, progress=None) -> GestaoBaseData:  # type: ignore[override]
         return self._data
 
 
@@ -177,3 +179,43 @@ def test_collector_uses_stored_password_when_missing(monkeypatch):
     assert isinstance(collector, DummyCollector)
     assert collector.senha == "Persistida!"
     assert stored_calls == []
+
+
+def test_execute_emits_progress_events(monkeypatch):
+    _reset_db()
+    data = GestaoBaseData(
+        rows=[
+            PlanRowEnriched(
+                numero="PLN_PROGRESS",
+                dt_propost="01/01/2024",
+                tipo="PR1",
+                situac="P.RESC.",
+                resoluc="123/45",
+                razao_social="Empresa Progresso",
+                saldo_total="1.000,00",
+                cnpj="12.345.678/0001-90",
+            )
+        ],
+        raw_lines=[],
+        portal_po=[],
+        descartados_974=0,
+    )
+
+    eventos: list[tuple[float, Optional[int], Optional[str]]] = []
+
+    class TrackingCollector:
+        def __init__(self, payload: GestaoBaseData) -> None:
+            self.payload = payload
+
+        def collect(self, progress=None) -> GestaoBaseData:  # type: ignore[override]
+            if progress:
+                progress(20.0, 1, "Dados coletados na E555")
+            return self.payload
+
+    service = GestaoBaseService()
+    monkeypatch.setattr(service, "_collector", lambda senha: TrackingCollector(data))
+
+    service.execute(progress_callback=lambda p, etapa, msg: eventos.append((p, etapa, msg)))
+
+    assert eventos, "deve registrar ao menos um evento de progresso"
+    assert any(etapa == 4 and round(percent, 1) == 100.0 for percent, etapa, _ in eventos)

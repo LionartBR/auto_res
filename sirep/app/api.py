@@ -302,6 +302,7 @@ async def captura_status():
             for h in st.historico
         ],
         "ultima_atualizacao": st.ultima_atualizacao,
+        "progresso_etapa": st.progress_stage,
         "ocorrencias_total": ocorrencias_total,
         "total": total,
         "total_passiveis": total_passiveis,

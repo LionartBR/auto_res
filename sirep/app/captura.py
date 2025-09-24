@@ -4,9 +4,10 @@ import asyncio
 import logging
 import random
 import traceback
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date, timedelta
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 from sirep.app.async_loop import AsyncLoopMixin
 from sirep.infra.db import SessionLocal
@@ -20,6 +21,7 @@ from sirep.domain.logs import GESTAO_STAGE_LABELS, infer_gestao_stage_numero
 from sirep.shared.fakes import TIPOS_REPRESENTACAO, gerar_razao_social
 from sirep.domain.enums import PlanStatus, Step
 from sirep.services.gestao_base import GestaoBaseService
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,8 @@ class CapturaStatus:
     ultima_atualizacao: Optional[str] = None
     last_error: Optional[str] = None  # <<< surfaced
     historico: List[PlanoHistorico] = field(default_factory=list)
+    progress_override: Optional[float] = None
+    progress_stage: Optional[str] = None
 
 class CapturaService(AsyncLoopMixin):
     _ASYNC_LOOP_THREAD_NAME = "captura-loop"
@@ -71,6 +75,8 @@ class CapturaService(AsyncLoopMixin):
         self._step_max = 0.80
         self._history_limit = 200
         self._history_loaded = False
+        self._last_progress_message: Optional[str] = None
+        self._last_progress_percent: float = 0.0
 
     def status(self) -> CapturaStatus:
         self._ensure_history_loaded()
@@ -85,6 +91,10 @@ class CapturaService(AsyncLoopMixin):
     def progresso_percentual(self) -> float:
         """Percentual de progresso considerando o total configurado."""
 
+        override = self._status.progress_override
+        if override is not None:
+            return round(max(0.0, min(override, 100.0)), 1)
+
         total = self._total_alvos
         if total <= 0:
             return 0.0
@@ -98,6 +108,8 @@ class CapturaService(AsyncLoopMixin):
         self._stop_evt = None
         self._history_loaded = False
         self._total_alvos = self._default_total_alvos
+        self._last_progress_message = None
+        self._last_progress_percent = 0.0
 
     async def _wait_resume(self) -> None:
         while True:
@@ -117,10 +129,38 @@ class CapturaService(AsyncLoopMixin):
                 continue
             remaining -= interval
 
-    def _executar_captura_real_sync(self) -> Any:
+    def _executar_captura_real_sync(
+        self,
+        *,
+        progress_callback: Optional[Callable[[float, Optional[int], Optional[str]], None]] = None,
+    ) -> Any:
         """Executa a captura real de Gestão da Base em thread separada."""
 
-        return self._gestao_base_service.execute()
+        return self._gestao_base_service.execute(progress_callback=progress_callback)
+
+    def _aplicar_progresso_real(
+        self, percent: float, etapa: Optional[int], mensagem: Optional[str]
+    ) -> None:
+        percent = max(0.0, min(percent, 100.0))
+        st = self._status
+        anterior = st.progress_override if st.progress_override is not None else self._last_progress_percent
+        if percent < anterior:
+            percent = anterior
+        st.progress_override = round(percent, 1)
+        self._last_progress_percent = percent
+        st.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
+        if mensagem:
+            st.progress_stage = mensagem
+        if etapa and mensagem and mensagem != self._last_progress_message:
+            etapa_label = GESTAO_STAGE_LABELS.get(etapa, "Gestão da Base")
+            self._registrar_historico(
+                numero_plano="",
+                progresso=etapa,
+                etapa=etapa_label,
+                mensagem=mensagem,
+                status="INFO",
+            )
+            self._last_progress_message = mensagem
 
     async def _run_captura_real(self) -> bool:
         """Tenta executar a captura real; retorna ``True`` em caso de sucesso."""
@@ -131,11 +171,28 @@ class CapturaService(AsyncLoopMixin):
             except (TypeError, ValueError):
                 return 0
 
+        loop = asyncio.get_running_loop()
+        st = self._status
+        st.progress_override = 0.0
+        st.progress_stage = "Captura real em andamento"
+        self._last_progress_message = None
+        self._last_progress_percent = 0.0
+
+        def _notify(percent: float, etapa: Optional[int] = None, mensagem: Optional[str] = None) -> None:
+            try:
+                loop.call_soon_threadsafe(self._aplicar_progresso_real, percent, etapa, mensagem)
+            except RuntimeError:
+                logger.debug("loop encerrado; ignorando atualização de progresso da captura real")
+
         try:
-            resultado = await asyncio.to_thread(self._executar_captura_real_sync)
+            resultado = await asyncio.to_thread(
+                self._executar_captura_real_sync, progress_callback=_notify
+            )
         except Exception:
-            self._status.last_error = traceback.format_exc()
+            st.last_error = traceback.format_exc()
             logger.exception("erro ao executar captura real da Gestão da Base")
+            self._status.progress_override = None
+            self._status.progress_stage = None
             self._registrar_historico(
                 numero_plano="",
                 progresso=1,
@@ -149,6 +206,8 @@ class CapturaService(AsyncLoopMixin):
 
         if not isinstance(resultado, dict):
             logger.error("resultado inesperado da captura real: %r", resultado)
+            self._status.progress_override = None
+            self._status.progress_stage = None
             self._registrar_historico(
                 numero_plano="",
                 progresso=1,
@@ -163,10 +222,12 @@ class CapturaService(AsyncLoopMixin):
         erro = resultado.get("error")
         if erro:
             mensagem_erro = str(erro)
-            self._status.last_error = mensagem_erro
+            st.last_error = mensagem_erro
             logger.warning(
                 "captura real bloqueada: %s; executando fallback simulado", mensagem_erro
             )
+            self._status.progress_override = None
+            self._status.progress_stage = None
             self._registrar_historico(
                 numero_plano="",
                 progresso=1,
@@ -193,14 +254,19 @@ class CapturaService(AsyncLoopMixin):
             else "Nenhum plano processado"
         )
 
-        self._status.processados = processados
-        self._status.novos = novos
-        self._status.falhas = 0
-        self._status.em_progresso.clear()
-        self._status.last_error = None
+        st.processados = processados
+        st.novos = novos
+        st.falhas = 0
+        st.em_progresso.clear()
+        st.last_error = None
+        st.progress_override = None
+        st.progress_stage = None
+        self._last_progress_message = None
+        self._last_progress_percent = 0.0
+
         self._total_alvos = max(processados, 1) if processados else self._default_total_alvos
-        self._status.estado = "concluido"
-        self._status.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
+        st.estado = "concluido"
+        st.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
         self._registrar_historico(
             numero_plano="",
             progresso=4,
@@ -417,21 +483,39 @@ class CapturaService(AsyncLoopMixin):
             status=status_norm,
             etapa_nome=etapa_nome,
         )
-        try:
-            with SessionLocal() as db:
-                repo = PlanLogRepository(db)
-                repo.add(
-                    contexto="gestao",
-                    numero_plano=numero_norm or None,
-                    mensagem=mensagem,
-                    status=status_norm,
-                    etapa_numero=etapa_numero,
-                    etapa_nome=etapa_nome,
-                    created_at=timestamp_dt,
-                )
-                db.commit()
-        except Exception:
-            logger.exception("erro ao persistir histórico da captura")
+        tentativa = 0
+        while True:
+            try:
+                with SessionLocal() as db:
+                    repo = PlanLogRepository(db)
+                    repo.add(
+                        contexto="gestao",
+                        numero_plano=numero_norm or None,
+                        mensagem=mensagem,
+                        status=status_norm,
+                        etapa_numero=etapa_numero,
+                        etapa_nome=etapa_nome,
+                        created_at=timestamp_dt,
+                    )
+                    db.commit()
+                break
+            except OperationalError as exc:
+                mensagem_erro = str(exc).lower()
+                if "database is locked" in mensagem_erro and tentativa < 4:
+                    tentativa += 1
+                    espera = min(0.5, 0.1 * tentativa)
+                    logger.warning(
+                        "banco bloqueado ao registrar histórico; aguardando %.2fs (tentativa %s)",
+                        espera,
+                        tentativa,
+                    )
+                    time.sleep(espera)
+                    continue
+                logger.exception("erro ao persistir histórico da captura")
+                break
+            except Exception:
+                logger.exception("erro ao persistir histórico da captura")
+                break
         historico = self._status.historico
         historico.append(evento)
         if len(historico) > self._history_limit:

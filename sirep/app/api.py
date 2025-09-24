@@ -11,7 +11,13 @@ from zipfile import ZipFile, ZIP_DEFLATED
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import (
+    JSONResponse,
+    RedirectResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 from xml.sax.saxutils import escape
@@ -29,6 +35,7 @@ from sirep.app.tratamento import tratamento
 from sirep.domain.models import DiscardedPlan, Plan
 from sirep.domain.schemas import (
     DiscardedPlanOut,
+    GestaoBasePasswordIn,
     PipelineRunItem,
     PipelineRunRequest,
     PipelineRunResponse,
@@ -38,6 +45,10 @@ from sirep.domain.schemas import (
 from sirep.infra.db import SessionLocal, init_db
 from sirep.infra.logging import setup_logging
 from sirep.infra.repositories import PlanLogRepository, TreatmentPlanRepository
+from sirep.infra.runtime_credentials import (
+    clear_gestao_base_password,
+    set_gestao_base_password,
+)
 from sirep.services.notepad import build_notepad_txt
 from sirep.services.orchestrator import Orchestrator
 from sirep.shared.config import DATETIME_DISPLAY_FORMAT, DISPLAY_TIMEZONE
@@ -208,6 +219,21 @@ def health():
 @app.get("/version")
 def version():
     return {"version": __version__}
+
+
+@app.post("/session/gestao-base/password", status_code=204)
+def store_gestao_base_password(payload: GestaoBasePasswordIn):
+    password = payload.password
+    if not password or not password.strip():
+        raise HTTPException(status_code=400, detail="Senha obrigatória.")
+    set_gestao_base_password(password)
+    return Response(status_code=204)
+
+
+@app.delete("/session/gestao-base/password", status_code=204)
+def clear_gestao_base_password_endpoint():
+    clear_gestao_base_password()
+    return Response(status_code=204)
 
 # ---- Handlers globais de erro ----
 @app.exception_handler(RequestValidationError)

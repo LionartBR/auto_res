@@ -189,12 +189,20 @@
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     if (Auth && typeof Auth.clearCredentials === 'function') {
       try {
         Auth.clearCredentials();
       } catch (error) {
         console.warn('Falha ao limpar credenciais ao encerrar sessão.', error);
+      }
+    }
+
+    if (typeof fetch === 'function') {
+      try {
+        await fetch('/session/gestao-base/password', { method: 'DELETE' });
+      } catch (error) {
+        console.warn('Falha ao limpar a senha de Gestão da Base.', error);
       }
     }
 
@@ -240,7 +248,10 @@
     if (logoutButton) {
       logoutButton.addEventListener('click', (event) => {
         event.preventDefault();
-        handleLogout();
+        Promise.resolve(handleLogout()).catch((error) => {
+          console.error('Falha ao encerrar sessão.', error);
+          redirectToLogin();
+        });
       });
     }
 

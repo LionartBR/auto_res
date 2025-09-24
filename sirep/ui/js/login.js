@@ -13,6 +13,40 @@
   let redirectTarget = null;
   let onAuthenticatedCallback = null;
 
+  async function persistGestaoBasePassword(password) {
+    if (typeof fetch !== 'function') {
+      throw new Error('Navegador incompatível.');
+    }
+
+    const response = await fetch('/session/gestao-base/password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+      let message = 'Não foi possível armazenar a senha com segurança.';
+      try {
+        const payload = await response.json();
+        if (payload && payload.detail) {
+          message = String(payload.detail);
+        }
+      } catch (_err) {
+        try {
+          const text = await response.text();
+          if (text) {
+            message = text;
+          }
+        } catch (_err2) {
+          // mantém mensagem padrão
+        }
+      }
+      throw new Error(message);
+    }
+  }
+
   function setFeedback(message) {
     if (!feedback) {
       return;
@@ -97,6 +131,7 @@
         throw new Error('Módulo de autenticação indisponível.');
       }
       await Auth.storeCredentials(username, password);
+      await persistGestaoBasePassword(password);
       if (form) {
         form.reset();
       }
@@ -118,6 +153,13 @@
       console.error('Falha ao concluir o login.', error);
       const message = error && error.message ? String(error.message) : 'Não foi possível concluir o login. Tente novamente.';
       setFeedback(message);
+      if (Auth && typeof Auth.clearCredentials === 'function') {
+        try {
+          Auth.clearCredentials();
+        } catch (clearError) {
+          console.warn('Falha ao limpar credenciais após erro de login.', clearError);
+        }
+      }
       disableForm(false);
       if (passwordInput) {
         passwordInput.value = '';

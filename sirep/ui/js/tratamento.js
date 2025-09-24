@@ -17,22 +17,90 @@
   const TREATMENT_TABLE_PAGE_SIZE = 10;
 
   function formatCnpjDisplay(cnpjs, options = {}) {
-    const { enableCopy = true } = options;
-    const list = Array.isArray(cnpjs) ? cnpjs.filter(Boolean) : [];
-    if (!list.length) {
+    const { enableCopy = true, prefer } = options;
+    const entries = [];
+
+    const escapeAttr = (value) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;');
+
+    const escapeHtml = (value) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const addEntry = (value) => {
+      const raw = String(value ?? '').trim();
+      if (!raw) {
+        return null;
+      }
+      const digits = raw.replace(/\D+/g, '');
+      if (!digits) {
+        return null;
+      }
+      const existing = entries.find((entry) => entry.digits === digits);
+      if (existing) {
+        return existing;
+      }
+      const entry = { raw, digits };
+      entries.push(entry);
+      return entry;
+    };
+
+    if (Array.isArray(cnpjs)) {
+      cnpjs.forEach((value) => {
+        addEntry(value);
+      });
+    }
+
+    let primary = null;
+    const preferStr = typeof prefer === 'string' ? prefer.trim() : '';
+    if (preferStr) {
+      primary = addEntry(preferStr);
+    }
+
+    if (!primary && entries.length) {
+      [primary] = entries;
+    }
+
+    if (!primary) {
       return '—';
     }
 
-    const [primaryCnpj] = list;
-    const extraCount = list.length > 1 ? list.length - 1 : 0;
-    const primaryLabel = enableCopy
-      ? `<a class="copy" data-copy="${primaryCnpj}" data-copy-type="cnpj" href="#">${primaryCnpj}</a>`
-      : primaryCnpj;
-    if (!extraCount) {
-      return primaryLabel;
+    const primaryIndex = entries.indexOf(primary);
+    if (primaryIndex > 0) {
+      entries.splice(primaryIndex, 1);
+      entries.unshift(primary);
     }
 
-    return `${primaryLabel}<span class="muted" aria-hidden="true"> (+${extraCount})</span><span class="sr-only">, mais ${extraCount} CNPJ(s) oculto(s)</span>`;
+    const extras = entries.slice(1);
+
+    const renderPrimary = () => {
+      if (!enableCopy) {
+        return escapeHtml(primary.raw);
+      }
+      const copyValue = escapeAttr(primary.raw);
+      const label = escapeHtml(primary.raw);
+      return `<a class="copy" data-copy="${copyValue}" data-copy-type="cnpj" href="#">${label}</a>`;
+    };
+
+    if (!extras.length) {
+      return renderPrimary();
+    }
+
+    const tooltipValues = entries.map((entry) => entry.raw);
+    const tooltip = escapeAttr(tooltipValues.join(' • '));
+
+    return `
+      <span class="cnpj-cell" title="${tooltip}">
+        ${renderPrimary()}<span class="muted" aria-hidden="true"> (+${extras.length})</span>
+        <span class="sr-only">, mais ${extras.length} CNPJ(s) oculto(s)</span>
+      </span>
+    `.trim();
   }
 
   function formatCount(value) {
@@ -107,7 +175,7 @@
     if (statusKey === 'rescindido') tr.classList.add('rescindido');
     if (statusKey === 'descartado') tr.classList.add('descartado');
     const etapaAtual = atual.etapa_atual ? `${atual.etapa_atual} / 7` : '—';
-    const cnpjCell = formatCnpjDisplay(atual.cnpjs);
+    const cnpjCell = formatCnpjDisplay(atual.cnpjs, { prefer: atual.cnpj });
     tr.innerHTML = `
       <td>${atual.numero_plano || '—'}</td>
       <td>${cnpjCell}</td>
@@ -242,7 +310,7 @@
           ? `<a class="copy" data-copy="${numeroPlano}" href="#">${numeroPlano}</a>`
           : '—';
 
-        const cnpjCell = formatCnpjDisplay(plan.cnpjs);
+        const cnpjCell = formatCnpjDisplay(plan.cnpjs, { prefer: plan.cnpj });
 
         const tipoRaw = plan.tipo ? String(plan.tipo).trim() : '';
         const tipo = tipoRaw || '—';

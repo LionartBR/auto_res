@@ -15,12 +15,15 @@ class PlanOut(BaseModel):
     dias_em_atraso: Optional[int] = None
     tipo: Optional[str] = None
     dt_situacao_atual: Optional[date] = None
+    dt_proposta: Optional[date] = None
     saldo: Optional[float] = None
     cmb_ajuste: Optional[str] = None
     justificativa: Optional[str] = None
     matricula: Optional[str] = None
     dt_parcela_atraso: Optional[date] = None
     representacao: Optional[str] = None
+    resolucao: Optional[str] = None
+    numero_inscricao: Optional[str] = None
     cnpj: Optional[str] = None
     status: PlanStatus
     data_rescisao: Optional[date] = None

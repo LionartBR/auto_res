@@ -92,14 +92,16 @@ class TratamentoService(AsyncLoopMixin):
                     situacao_atual="P.RESC.",
                     situacao_anterior="P.RESC.",
                     dias_em_atraso=random.randint(30, 180),
-                    tipo=random.choice(TIPOS_REPRESENTACAO),
+                    tipo=tipo,
                     dt_situacao_atual=date.today() - timedelta(days=random.randint(10, 90)),
                     saldo=float(random.randint(5_000, 60_000)),
                     status=PlanStatus.PASSIVEL_RESC,
                     razao_social=razao,
-                    tipo_parcelamento=tipo,
                     representacao=principal_cnpj,
+                    numero_inscricao=principal_cnpj,
                 )
+                plan.dt_proposta = date.today() - timedelta(days=random.randint(30, 180))
+                plan.resolucao = random.choice(["123/45", "987/65", "321/09"])
                 plan.cmb_ajuste = ""
                 plan.justificativa = ""
                 plan.matricula = ""
@@ -203,8 +205,8 @@ class TratamentoService(AsyncLoopMixin):
                 periodo = gerar_periodo()
                 cnpjs = gerar_cnpjs()
                 bases = gerar_bases()
-                tipo = plan.tipo_parcelamento or plan.tipo or random.choice(TIPOS_PARCELAMENTO)
-                plan.tipo_parcelamento = plan.tipo_parcelamento or tipo
+                tipo = plan.tipo or random.choice(TIPOS_PARCELAMENTO)
+                plan.tipo = plan.tipo or tipo
                 if not plan.representacao and cnpjs:
                     plan.representacao = cnpjs[0]
 

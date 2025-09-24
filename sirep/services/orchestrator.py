@@ -1,8 +1,8 @@
 from typing import Dict, Any, List
 from sirep.domain.enums import Step
-from sirep.adapters.stubs import FGEStub, SirepStub, CEFGDStub, CNSStub, PIGStub
+from sirep.adapters.stubs import FGEStub, SirepStub, CNSStub, PIGStub
+from sirep.services.gestao_base import GestaoBaseNoOpService, GestaoBaseService
 from .etapas import (
-    Etapa1Captura, Etapa2SituacaoEspecial, Etapa3LiquidacaoAnterior, Etapa4GuiaGRDE,
     Etapa5AproveitamentoRecolh, Etapa7SubstituicaoE206, Etapa8PIGPesquisa,
     Etapa9PIGLancamento, Etapa10SituacaoPlano, Etapa11Rescisao, Etapa12Comunicacao,
     Etapa13Dossie
@@ -11,12 +11,16 @@ from .etapas import (
 class Orchestrator:
     def __init__(self):
         # Substitua stubs por adapters reais quando prontos.
-        self.fge, self.sirep, self.cefgd, self.cns, self.pig = FGEStub(), SirepStub(), CEFGDStub(), CNSStub(), PIGStub()
+        self.fge, self.sirep, self.cns, self.pig = FGEStub(), SirepStub(), CNSStub(), PIGStub()
+        self.gestao_base = GestaoBaseService()
+        self.noop_etapa2 = GestaoBaseNoOpService(Step.ETAPA_2)
+        self.noop_etapa3 = GestaoBaseNoOpService(Step.ETAPA_3)
+        self.noop_etapa4 = GestaoBaseNoOpService(Step.ETAPA_4)
         self.map = {
-            Step.ETAPA_1: Etapa1Captura(self.fge, self.sirep),
-            Step.ETAPA_2: Etapa2SituacaoEspecial(self.sirep, self.cefgd),
-            Step.ETAPA_3: Etapa3LiquidacaoAnterior(self.fge, self.sirep),
-            Step.ETAPA_4: Etapa4GuiaGRDE(self.fge, self.sirep),
+            Step.ETAPA_1: self.gestao_base,
+            Step.ETAPA_2: self.noop_etapa2,
+            Step.ETAPA_3: self.noop_etapa3,
+            Step.ETAPA_4: self.noop_etapa4,
             Step.ETAPA_5: Etapa5AproveitamentoRecolh(self.fge),
             Step.ETAPA_7: Etapa7SubstituicaoE206(self.fge, self.sirep),
             Step.ETAPA_8: Etapa8PIGPesquisa(self.pig),

@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Iterable
 
 # Pastas a ignorar, em qualquer nível
-IGNORE_DIRS = {".venv", "__pycache__", "sql", "tests", "txt_export", "logs"}
+IGNORE_DIRS = {".venv", "__pycache__", "sql", "tests", "txt_export", "logs", ".git"}
 
 # Arquivos específicos a ignorar (por nome exato)
 IGNORE_FILES = {"__init__.py", ".env", ".env.example", "pyproject.toml", "sirep.db", ".gitignore", "AGENTS.md"}

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from hashlib import md5
 from time import sleep
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 
 from sirep.domain.enums import PlanStatus, Step
@@ -427,6 +428,118 @@ def run_pipeline(
 # ------------------------------- Serviço -----------------------------------
 
 
+def _clean_inscricao(raw: str | None) -> str:
+    """Return a canonical identifier keeping the formatted version when absent."""
+
+    texto = (raw or "").strip()
+    digits = only_digits(texto)
+    return digits or texto
+
+
+def _representacao_value(raw: str | None, fallback: str | None) -> str | None:
+    texto = (raw or "").strip()
+    if texto:
+        return texto
+    return fallback or None
+
+
+def _infer_plan_status(situacao: str | None) -> PlanStatus | None:
+    texto = (situacao or "").strip()
+    if not texto:
+        return None
+    normalizado = texto.upper()
+    if normalizado.startswith("P.RESC") or normalizado.startswith("PRESC"):
+        return PlanStatus.PASSIVEL_RESC
+    if "ESPECIAL" in normalizado:
+        return PlanStatus.ESPECIAL
+    if "LIQ" in normalizado:
+        return PlanStatus.LIQUIDADO
+    if "GRDE" in normalizado:
+        return PlanStatus.NAO_RESCINDIDO
+    if normalizado.startswith("RESC"):
+        return PlanStatus.RESCINDIDO
+    return PlanStatus.PASSIVEL_RESC
+
+
+def _format_summary(stats: dict[str, int]) -> str:
+    total = stats.get("importados", 0)
+    novos = stats.get("novos", 0)
+    atualizados = stats.get("atualizados", 0)
+    detalhes: list[str] = []
+    if novos:
+        detalhes.append(f"{novos} novos")
+    if atualizados:
+        detalhes.append(f"{atualizados} atualizados")
+    if detalhes:
+        return f"{total} planos ({', '.join(detalhes)})"
+    if total:
+        return f"{total} planos"
+    return "Nenhum plano processado"
+
+
+def _persist_rows(context: StepJobContext, data: GestaoBaseData) -> dict[str, int]:
+    hoje = datetime.now(UTC).date()
+    processados = 0
+    novos = 0
+    atualizados = 0
+
+    for row in data.rows:
+        processados += 1
+        existente = context.plans.get_by_numero(row.numero)
+        situacao = (row.situac or "").strip()
+        tipo = (row.tipo or "").strip()
+        dt_proposta = parse_date_any(row.dt_propost)
+        saldo_raw = parse_money_brl(row.saldo_total)
+        saldo = None if math.isnan(saldo_raw) else saldo_raw
+        inscricao_canonica = _clean_inscricao(row.cnpj)
+        inscricao_original = (row.cnpj or "").strip()
+
+        campos: dict[str, Any] = {
+            "dt_situacao_atual": hoje,
+            "situacao_anterior": existente.situacao_atual if existente else None,
+        }
+
+        if situacao:
+            campos["situacao_atual"] = situacao
+        if tipo:
+            campos["tipo"] = tipo
+        if dt_proposta is not None:
+            campos["dt_proposta"] = dt_proposta
+        if saldo is not None:
+            campos["saldo"] = saldo
+        resolucao = (row.resoluc or "").strip()
+        if resolucao:
+            campos["resolucao"] = resolucao
+        razao_social = (row.razao_social or "").strip()
+        if razao_social:
+            campos["razao_social"] = razao_social
+        if inscricao_canonica:
+            campos["numero_inscricao"] = inscricao_canonica
+        representacao = _representacao_value(inscricao_original, inscricao_canonica)
+        if representacao is not None:
+            campos["representacao"] = representacao
+
+        status = _infer_plan_status(situacao)
+        if status is not None:
+            campos["status"] = status
+        elif existente is None:
+            campos["status"] = PlanStatus.PASSIVEL_RESC
+
+        plan = context.plans.upsert(numero_plano=row.numero, **campos)
+
+        if existente is None:
+            novos += 1
+            mensagem = "Plano importado via Gestão da Base"
+        else:
+            atualizados += 1
+            mensagem = "Plano atualizado via Gestão da Base"
+        context.events.log(plan.id, Step.ETAPA_1, mensagem)
+
+    return {
+        "importados": processados,
+        "novos": novos,
+        "atualizados": atualizados,
+
 def _clean_inscricao(raw: str) -> str:
     texto = (raw or "").strip()
     return texto
@@ -473,6 +586,7 @@ def _sample_data() -> GestaoBaseData:
         PlanRowEnriched(
             numero="1234567890",
             dt_propost="01/02/2024",
+            tipo="PR1",
             tipo="ADM",
             situac="P.RESC.",
             resoluc="123/45",
@@ -535,6 +649,7 @@ class GestaoBaseService:
             collector = self._collector(senha)
             data = collector.collect()
             resultado = _persist_rows(context, data)
+            summary = _format_summary(resultado)
             summary = f"{resultado['importados']} planos"
             return StepJobOutcome(data=resultado, info_update={"summary": summary})
 

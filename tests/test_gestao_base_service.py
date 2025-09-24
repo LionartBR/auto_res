@@ -2,8 +2,13 @@ import pytest
 
 from sirep.domain.enums import PlanStatus
 from sirep.domain.models import Event, Plan
+from sirep.infra.config import settings
 from sirep.infra.db import SessionLocal, init_db
-from sirep.services.gestao_base import GestaoBaseData, GestaoBaseService, PlanRowEnriched
+from sirep.services.gestao_base import (
+    GestaoBaseData,
+    GestaoBaseService,
+    PlanRowEnriched,
+)
 
 
 class _Collector:
@@ -113,3 +118,62 @@ def test_gestao_base_preserves_existing_plan_fields(monkeypatch):
         assert plan.saldo == pytest.approx(1234.56)
         assert plan.razao_social == "Nova Empresa"
         assert plan.dt_proposta.isoformat() == "2024-08-05"
+
+
+def test_collector_persists_provided_password(monkeypatch):
+    monkeypatch.setattr(settings, "DRY_RUN", False)
+
+    stored: dict[str, str] = {}
+
+    def _fake_store(password: str | None) -> None:
+        if password is not None:
+            stored["value"] = password
+
+    monkeypatch.setattr("sirep.services.gestao_base.set_gestao_base_password", _fake_store)
+    monkeypatch.setattr("sirep.services.gestao_base.get_gestao_base_password", lambda: None)
+
+    captured: dict[str, object] = {}
+
+    class DummyCollector:
+        def __init__(self, senha: str, portal_provider) -> None:  # pragma: no cover - simples
+            captured["senha"] = senha
+            captured["portal_provider"] = portal_provider
+
+    monkeypatch.setattr("sirep.services.gestao_base.TerminalCollector", DummyCollector)
+
+    service = GestaoBaseService(portal_provider=lambda: [])
+    collector = service._collector("  Segredo!  ")
+
+    assert isinstance(collector, DummyCollector)
+    assert stored["value"] == "Segredo!"
+    assert captured["senha"] == "Segredo!"
+    assert captured["portal_provider"] is service.portal_provider
+
+
+def test_collector_uses_stored_password_when_missing(monkeypatch):
+    monkeypatch.setattr(settings, "DRY_RUN", False)
+
+    stored_calls: list[str] = []
+
+    def _fake_store(password: str | None) -> None:
+        if password is not None:
+            stored_calls.append(password)
+
+    monkeypatch.setattr("sirep.services.gestao_base.set_gestao_base_password", _fake_store)
+    monkeypatch.setattr(
+        "sirep.services.gestao_base.get_gestao_base_password", lambda: "Persistida!"
+    )
+
+    class DummyCollector:
+        def __init__(self, senha: str, portal_provider) -> None:  # pragma: no cover - simples
+            self.senha = senha
+            self.portal_provider = portal_provider
+
+    monkeypatch.setattr("sirep.services.gestao_base.TerminalCollector", DummyCollector)
+
+    service = GestaoBaseService()
+    collector = service._collector(None)
+
+    assert isinstance(collector, DummyCollector)
+    assert collector.senha == "Persistida!"
+    assert stored_calls == []

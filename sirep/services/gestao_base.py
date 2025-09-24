@@ -15,7 +15,7 @@ from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Tuple
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.config import settings
-from sirep.infra.runtime_credentials import get_gestao_base_password
+from sirep.infra.runtime_credentials import get_gestao_base_password, set_gestao_base_password
 from sirep.services.base import ServiceResult, StepJobContext, StepJobOutcome, run_step_job
 
 logger = logging.getLogger(__name__)
@@ -605,7 +605,13 @@ class GestaoBaseService:
         if settings.DRY_RUN:
             return DryRunCollector()
 
-        resolved = senha or get_gestao_base_password()
+        provided = (senha or "").strip()
+        if provided:
+            set_gestao_base_password(provided)
+            resolved = provided
+        else:
+            resolved = get_gestao_base_password()
+
         if not resolved:
             logger.warning(
                 "Senha da Gestão da Base não disponível; execução será interrompida."

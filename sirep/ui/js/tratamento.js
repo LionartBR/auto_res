@@ -16,6 +16,25 @@
 
   const TREATMENT_TABLE_PAGE_SIZE = 10;
 
+  function formatCnpjDisplay(cnpjs, options = {}) {
+    const { enableCopy = true } = options;
+    const list = Array.isArray(cnpjs) ? cnpjs.filter(Boolean) : [];
+    if (!list.length) {
+      return '—';
+    }
+
+    const [primaryCnpj] = list;
+    const extraCount = list.length > 1 ? list.length - 1 : 0;
+    const primaryLabel = enableCopy
+      ? `<a class="copy" data-copy="${primaryCnpj}" data-copy-type="cnpj" href="#">${primaryCnpj}</a>`
+      : primaryCnpj;
+    if (!extraCount) {
+      return primaryLabel;
+    }
+
+    return `${primaryLabel}<span class="muted" aria-hidden="true"> (+${extraCount})</span><span class="sr-only">, mais ${extraCount} CNPJ(s) oculto(s)</span>`;
+  }
+
   function formatCount(value) {
     const numeric = Number(value ?? 0);
     if (!Number.isFinite(numeric) || numeric < 0) {
@@ -88,15 +107,16 @@
     if (statusKey === 'rescindido') tr.classList.add('rescindido');
     if (statusKey === 'descartado') tr.classList.add('descartado');
     const etapaAtual = atual.etapa_atual ? `${atual.etapa_atual} / 7` : '—';
-    const cnpjs = Array.isArray(atual.cnpjs) && atual.cnpjs.length ? atual.cnpjs.join('<br>') : '—';
+    const cnpjCell = formatCnpjDisplay(atual.cnpjs);
     tr.innerHTML = `
       <td>${atual.numero_plano || '—'}</td>
-      <td>${cnpjs}</td>
+      <td>${cnpjCell}</td>
       <td>${atual.razao_social || '—'}</td>
       <td>${formatTreatmentStatus(atual.status)}</td>
       <td>${etapaAtual}</td>
     `;
     el.tbodyTratamentoFila.appendChild(tr);
+    attachCopyHandlers(el.tbodyTratamentoFila);
   }
 
   function updateRescindidosResumo(data) {
@@ -222,16 +242,7 @@
           ? `<a class="copy" data-copy="${numeroPlano}" href="#">${numeroPlano}</a>`
           : '—';
 
-        const cnpjList = Array.isArray(plan.cnpjs) ? plan.cnpjs.filter(Boolean) : [];
-        const primaryCnpj = cnpjList.length ? cnpjList[0] : null;
-        const extraCount = cnpjList.length > 1 ? cnpjList.length - 1 : 0;
-        let cnpjCell = '—';
-        if (primaryCnpj) {
-          const extraInfo = extraCount
-            ? `<span class="muted" aria-hidden="true"> (+${extraCount})</span><span class="sr-only">, mais ${extraCount} CNPJ(s) oculto(s)</span>`
-            : '';
-          cnpjCell = `<a class="copy" data-copy="${primaryCnpj}" data-copy-type="cnpj" href="#">${primaryCnpj}</a>${extraInfo}`;
-        }
+        const cnpjCell = formatCnpjDisplay(plan.cnpjs);
 
         const tipoRaw = plan.tipo ? String(plan.tipo).trim() : '';
         const tipo = tipoRaw || '—';

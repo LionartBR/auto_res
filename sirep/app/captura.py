@@ -6,7 +6,7 @@ import random
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, date, timedelta
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from sirep.app.async_loop import AsyncLoopMixin
 from sirep.infra.db import SessionLocal
@@ -19,6 +19,7 @@ from sirep.infra.repositories import (
 from sirep.domain.logs import GESTAO_STAGE_LABELS, infer_gestao_stage_numero
 from sirep.shared.fakes import TIPOS_REPRESENTACAO, gerar_razao_social
 from sirep.domain.enums import PlanStatus, Step
+from sirep.services.gestao_base import GestaoBaseService
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,9 @@ class CapturaService(AsyncLoopMixin):
         self._loop_task: Optional[asyncio.Future] = None
         self._pause_evt: Optional[asyncio.Event] = None
         self._stop_evt: Optional[asyncio.Event] = None
-        self._total_alvos = 50
+        self._gestao_base_service = GestaoBaseService()
+        self._default_total_alvos = 50
+        self._total_alvos = self._default_total_alvos
         self._velocidade = 1
         self._step_min = 0.40
         self._step_max = 0.80
@@ -94,6 +97,7 @@ class CapturaService(AsyncLoopMixin):
         self._pause_evt = None
         self._stop_evt = None
         self._history_loaded = False
+        self._total_alvos = self._default_total_alvos
 
     async def _wait_resume(self) -> None:
         while True:
@@ -113,6 +117,100 @@ class CapturaService(AsyncLoopMixin):
                 continue
             remaining -= interval
 
+    def _executar_captura_real_sync(self) -> Any:
+        """Executa a captura real de Gestão da Base em thread separada."""
+
+        return self._gestao_base_service.execute()
+
+    async def _run_captura_real(self) -> bool:
+        """Tenta executar a captura real; retorna ``True`` em caso de sucesso."""
+
+        def _safe_int(value: Any) -> int:
+            try:
+                return int(value)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return 0
+
+        try:
+            resultado = await asyncio.to_thread(self._executar_captura_real_sync)
+        except Exception:
+            self._status.last_error = traceback.format_exc()
+            logger.exception("erro ao executar captura real da Gestão da Base")
+            self._registrar_historico(
+                numero_plano="",
+                progresso=1,
+                etapa=GESTAO_STAGE_LABELS.get(1, "Gestão da Base"),
+                mensagem=(
+                    "Captura real indisponível; executando fallback com dados simulados."
+                ),
+                status="FALHA",
+            )
+            return False
+
+        if not isinstance(resultado, dict):
+            logger.error("resultado inesperado da captura real: %r", resultado)
+            self._registrar_historico(
+                numero_plano="",
+                progresso=1,
+                etapa=GESTAO_STAGE_LABELS.get(1, "Gestão da Base"),
+                mensagem=(
+                    "Retorno inválido da captura real; executando fallback com dados simulados."
+                ),
+                status="FALHA",
+            )
+            return False
+
+        erro = resultado.get("error")
+        if erro:
+            mensagem_erro = str(erro)
+            self._status.last_error = mensagem_erro
+            logger.warning(
+                "captura real bloqueada: %s; executando fallback simulado", mensagem_erro
+            )
+            self._registrar_historico(
+                numero_plano="",
+                progresso=1,
+                etapa=GESTAO_STAGE_LABELS.get(1, "Gestão da Base"),
+                mensagem=(
+                    "Captura real bloqueada; executando fallback com dados simulados."
+                ),
+                status="FALHA",
+            )
+            return False
+
+        processados = _safe_int(resultado.get("importados"))
+        novos = _safe_int(resultado.get("novos"))
+        atualizados = _safe_int(resultado.get("atualizados"))
+
+        detalhes: list[str] = []
+        if novos:
+            detalhes.append(f"{novos} novos")
+        if atualizados:
+            detalhes.append(f"{atualizados} atualizados")
+        resumo = (
+            f"{processados} planos" + (f" ({', '.join(detalhes)})" if detalhes else "")
+            if processados
+            else "Nenhum plano processado"
+        )
+
+        self._status.processados = processados
+        self._status.novos = novos
+        self._status.falhas = 0
+        self._status.em_progresso.clear()
+        self._status.last_error = None
+        self._total_alvos = max(processados, 1) if processados else self._default_total_alvos
+        self._status.estado = "concluido"
+        self._status.ultima_atualizacao = datetime.now(timezone.utc).isoformat()
+        self._registrar_historico(
+            numero_plano="",
+            progresso=4,
+            etapa=GESTAO_STAGE_LABELS.get(4, "Gestão da Base"),
+            mensagem=f"Captura real concluída: {resumo}.",
+            status="SUCESSO",
+        )
+        logger.info("captura real concluída com sucesso: %s", resumo)
+        return True
+
     def iniciar(self) -> None:
         self._ensure_history_loaded()
         if self._status.estado in ("executando", "pausado"):
@@ -121,6 +219,7 @@ class CapturaService(AsyncLoopMixin):
 
         historico_anterior = list(self._status.historico)
         ultima_atualizacao = self._status.ultima_atualizacao
+        self._total_alvos = self._default_total_alvos
         self._status = CapturaStatus(
             estado="executando",
             historico=historico_anterior,
@@ -224,6 +323,8 @@ class CapturaService(AsyncLoopMixin):
             return
 
         try:
+            if await self._run_captura_real():
+                return
             alvo, gerados = self._total_alvos, 0
             while not stop_evt.is_set() and gerados < alvo:
                 await self._wait_resume()

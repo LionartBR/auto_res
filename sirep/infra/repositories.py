@@ -128,6 +128,10 @@ class OccurrenceRepository:
     def __init__(self, db: Session) -> None:
         self._db = db
 
+    def list_all(self) -> list[DiscardedPlan]:
+        stmt = select(DiscardedPlan).order_by(DiscardedPlan.id.asc())
+        return list(self._db.scalars(stmt))
+
     def add(
         self,
         *,

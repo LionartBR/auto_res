@@ -189,11 +189,12 @@ class TratamentoService(AsyncLoopMixin):
 
     def migrar_planos(self) -> List[int]:
         created_ids: List[int] = []
+        queue_ids: List[int] = []
         with SessionLocal() as db:
             plans_repo = PlanRepository(db)
             treatment_repo = TreatmentPlanRepository(db)
 
-            planos = plans_repo.list_by_status(PlanStatus.PASSIVEL_RESC)
+            planos = plans_repo.list_all()
             for plan in planos:
                 if treatment_repo.by_plan_id(plan.id):
                     continue
@@ -229,14 +230,47 @@ class TratamentoService(AsyncLoopMixin):
                     bases=bases,
                     notas=notas,
                 )
+
+                status_raw = plan.status or ""
+                plan_status: Optional[PlanStatus] = None
+                if status_raw:
+                    try:
+                        plan_status = PlanStatus(status_raw)
+                    except ValueError:
+                        plan_status = None
+
+                should_queue = plan_status in {
+                    PlanStatus.PASSIVEL_RESC,
+                    PlanStatus.NOVO,
+                    PlanStatus.SEM_TRATAMENTO,
+                }
+
+                if plan_status == PlanStatus.RESCINDIDO:
+                    treatment.status = "rescindido"
+                    if plan.data_rescisao:
+                        treatment.rescisao_data = plan.data_rescisao
+                elif plan_status in {
+                    PlanStatus.LIQUIDADO,
+                    PlanStatus.NAO_RESCINDIDO,
+                    PlanStatus.ESPECIAL,
+                }:
+                    treatment.status = status_raw
+                elif not should_queue and status_raw:
+                    treatment.status = status_raw
+
+                if plan.data_rescisao and treatment.rescisao_data is None:
+                    treatment.rescisao_data = plan.data_rescisao
+
                 created_ids.append(treatment.id)
+                if should_queue:
+                    queue_ids.append(treatment.id)
 
             db.commit()
 
-        if created_ids:
+        if queue_ids:
             loop = self._ensure_loop()
             self._start_worker(loop)
-            for treatment_id in created_ids:
+            for treatment_id in queue_ids:
                 self._enqueue(treatment_id, loop=loop)
         return created_ids
 

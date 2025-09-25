@@ -1,5 +1,8 @@
 import asyncio
 import time
+from datetime import datetime, timezone
+
+import pytest
 
 from sirep.app.captura import CapturaService
 from sirep.infra.db import init_db
@@ -40,3 +43,42 @@ def test_pausar_pos_conclusao_permite_reiniciar(monkeypatch):
     service.iniciar()
     _esperar_estado(service, "concluido")
     assert service.status().estado == "concluido"
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.anyio
+async def test_persistir_historico_async_fallback_runtimeerror(monkeypatch):
+    init_db()
+
+    service = CapturaService()
+    fallback_args: dict[str, tuple] = {}
+
+    async def raise_runtime_error(*args, **kwargs):
+        raise RuntimeError("Executor shutdown has been called")
+
+    monkeypatch.setattr(asyncio, "to_thread", raise_runtime_error)
+
+    def fake_sync(numero_plano, mensagem, status, etapa_numero, etapa_nome, created_at):
+        fallback_args["args"] = (
+            numero_plano,
+            mensagem,
+            status,
+            etapa_numero,
+            etapa_nome,
+            created_at,
+        )
+        return True
+
+    monkeypatch.setattr(service, "_persistir_historico_sync", fake_sync)
+
+    resultado = await service._persistir_historico_async(
+        "0001",
+        "Registro teste",
+        "INFO",
+        1,
+        "Etapa teste",
+        datetime.now(timezone.utc),
+    )
+
+    assert resultado is True
+    assert "args" in fallback_args

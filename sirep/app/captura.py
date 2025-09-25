@@ -532,6 +532,22 @@ class CapturaService(AsyncLoopMixin):
                     created_at,
                 )
                 return True
+            except RuntimeError as exc:
+                message = str(exc)
+                if "Executor shutdown has been called" in message or "cannot schedule new futures" in message:
+                    logger.debug(
+                        "executor padrão indisponível ao registrar histórico; executando caminho síncrono"
+                    )
+                    return self._persistir_historico_sync(
+                        numero_plano,
+                        mensagem,
+                        status,
+                        etapa_numero,
+                        etapa_nome,
+                        created_at,
+                    )
+                logger.exception("erro ao persistir histórico da captura")
+                return False
             except OperationalError as exc:
                 mensagem_erro = str(exc).lower()
                 if "database is locked" in mensagem_erro and tentativa < 4:

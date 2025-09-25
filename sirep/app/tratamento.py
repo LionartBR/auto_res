@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 import string
 import threading
 from datetime import date, datetime, timedelta, timezone
@@ -19,6 +20,7 @@ from sirep.infra.repositories import (
     PlanRepository,
     TreatmentPlanRepository,
     PlanLogRepository,
+    OccurrenceRepository,
 )
 from sirep.domain.logs import (
     TRATAMENTO_STAGE_DEFINITIONS,
@@ -193,6 +195,12 @@ class TratamentoService(AsyncLoopMixin):
         with SessionLocal() as db:
             plans_repo = PlanRepository(db)
             treatment_repo = TreatmentPlanRepository(db)
+            occurrence_repo = OccurrenceRepository(db)
+
+            self._materializar_planos_de_ocorrencias(
+                plans_repo=plans_repo,
+                occurrence_repo=occurrence_repo,
+            )
 
             planos = plans_repo.list_all()
             for plan in planos:
@@ -273,6 +281,67 @@ class TratamentoService(AsyncLoopMixin):
             for treatment_id in queue_ids:
                 self._enqueue(treatment_id, loop=loop)
         return created_ids
+
+    def _materializar_planos_de_ocorrencias(
+        self,
+        *,
+        plans_repo: PlanRepository,
+        occurrence_repo: OccurrenceRepository,
+    ) -> None:
+        ocorrencias = occurrence_repo.list_all()
+        for ocorrencia in ocorrencias:
+            numero = (ocorrencia.numero_plano or "").strip()
+            if not numero:
+                continue
+
+            plan = plans_repo.get_by_numero(numero)
+            if plan is not None:
+                continue
+
+            campos: dict[str, Any] = {}
+            situacao = (ocorrencia.situacao or "").strip()
+            if situacao:
+                campos["situacao_atual"] = situacao
+                campos["status"] = self._status_por_situacao(situacao)
+            if ocorrencia.tipo:
+                campos["tipo"] = ocorrencia.tipo
+            if ocorrencia.saldo is not None:
+                campos["saldo"] = ocorrencia.saldo
+            if ocorrencia.dt_situacao_atual:
+                campos["dt_situacao_atual"] = ocorrencia.dt_situacao_atual
+
+            representacao = (ocorrencia.cnpj or "").strip()
+            inscricao = self._somente_digitos(representacao)
+            if representacao:
+                campos["representacao"] = representacao
+            if inscricao:
+                campos["numero_inscricao"] = inscricao
+
+            plans_repo.upsert(numero_plano=numero, **campos)
+
+    @staticmethod
+    def _somente_digitos(valor: str | None) -> str | None:
+        if not valor:
+            return None
+        digits = re.sub(r"\D", "", valor)
+        return digits or None
+
+    @staticmethod
+    def _status_por_situacao(situacao: str | None) -> PlanStatus:
+        texto = (situacao or "").strip().upper()
+        if not texto:
+            return PlanStatus.PASSIVEL_RESC
+        if texto.startswith("P.RESC") or texto.startswith("PRESC"):
+            return PlanStatus.PASSIVEL_RESC
+        if "ESPECIAL" in texto:
+            return PlanStatus.ESPECIAL
+        if "LIQ" in texto:
+            return PlanStatus.LIQUIDADO
+        if "GRDE" in texto:
+            return PlanStatus.NAO_RESCINDIDO
+        if texto.startswith("RESC"):
+            return PlanStatus.RESCINDIDO
+        return PlanStatus.PASSIVEL_RESC
 
     # ---- controle de execução ----
     def iniciar(self) -> None:

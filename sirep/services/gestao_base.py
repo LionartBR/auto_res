@@ -14,6 +14,7 @@ from typing import Any, Callable, Iterable, Iterator, List, Optional, Protocol, 
 
 from sirep.domain.enums import PlanStatus, Step
 from sirep.infra.config import settings
+from sirep.infra.repositories import OccurrenceRepository
 from sirep.infra.runtime_credentials import get_gestao_base_password, set_gestao_base_password
 from sirep.services.base import ServiceResult, StepJobContext, StepJobOutcome, run_step_job
 
@@ -481,6 +482,24 @@ def _infer_plan_status(situacao: str | None) -> PlanStatus | None:
     return PlanStatus.PASSIVEL_RESC
 
 
+def _should_register_occurrence(situacao: str | None) -> bool:
+    """Identifica situações que devem ser exibidas como ocorrência."""
+
+    texto = (situacao or "").strip()
+    if not texto:
+        return False
+    normalizado = texto.upper()
+    if "ESPECIAL" in normalizado:
+        return True
+    if normalizado.startswith("RESC"):
+        return True
+    if normalizado.startswith("LIQ"):
+        return True
+    if "GRDE" in normalizado:
+        return True
+    return False
+
+
 def _format_summary(stats: dict[str, int]) -> str:
     total = stats.get("importados", 0)
     novos = stats.get("novos", 0)
@@ -518,6 +537,9 @@ def _persist_rows(
         if progress_callback:
             progress_callback(100.0, 4, "Persistência concluída")
         return {"importados": 0, "novos": 0, "atualizados": 0}
+
+    occurrence_repo = OccurrenceRepository(context.db) if not settings.DRY_RUN else None
+    occurrence_registrados: set[str] = set()
 
     for idx, row in enumerate(data.rows, start=1):
         processados += 1
@@ -562,6 +584,30 @@ def _persist_rows(
             campos["status"] = PlanStatus.PASSIVEL_RESC
 
         plan = context.plans.upsert(numero_plano=row.numero, **campos)
+
+        if occurrence_repo and _should_register_occurrence(situacao):
+            numero_plano = row.numero.strip()
+            if numero_plano and numero_plano not in occurrence_registrados:
+                cnpj_ocorrencia = (
+                    representacao
+                    or inscricao_original
+                    or inscricao_canonica
+                )
+                if cnpj_ocorrencia:
+                    occurrence_repo.add(
+                        numero_plano=numero_plano,
+                        situacao=situacao,
+                        cnpj=cnpj_ocorrencia,
+                        tipo=tipo or None,
+                        saldo=saldo,
+                        dt_situacao_atual=hoje,
+                    )
+                    occurrence_registrados.add(numero_plano)
+                else:
+                    logger.debug(
+                        "Ocorrência ignorada para plano %s: CNPJ ausente",
+                        numero_plano,
+                    )
 
         if existente is None:
             novos += 1

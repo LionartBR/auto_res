@@ -130,8 +130,8 @@ class OccurrenceRepository:
         numero_plano: str,
         situacao: str,
         cnpj: str,
-        tipo: str,
-        saldo: float,
+        tipo: Optional[str] = None,
+        saldo: Optional[float] = None,
         dt_situacao_atual: Optional[date] = None,
     ) -> DiscardedPlan:
         row = DiscardedPlan(

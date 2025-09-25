@@ -13,6 +13,7 @@ class PlanOut(BaseModel):
     situacao_atual: Optional[str] = None
     situacao_anterior: Optional[str] = None
     dias_em_atraso: Optional[int] = None
+    parcelas_atraso: Optional[list[dict[str, Any]]] = None
     tipo: Optional[str] = None
     dt_situacao_atual: Optional[date] = None
     dt_proposta: Optional[date] = None

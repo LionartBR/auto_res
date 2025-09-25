@@ -90,6 +90,7 @@ def _apply_legacy_plan_patches() -> None:
         "dt_proposta": "ALTER TABLE plans ADD COLUMN dt_proposta DATE",
         "resolucao": "ALTER TABLE plans ADD COLUMN resolucao VARCHAR(32)",
         "numero_inscricao": "ALTER TABLE plans ADD COLUMN numero_inscricao VARCHAR(32)",
+        "parcelas_atraso": "ALTER TABLE plans ADD COLUMN parcelas_atraso JSON",
     }
 
     columns_to_drop = ("tipo_parcelamento", "saldo_total")

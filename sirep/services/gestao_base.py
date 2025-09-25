@@ -725,6 +725,7 @@ def _persist_rows(
         representacao = _representacao_value(inscricao_original, inscricao_canonica)
         if representacao is not None:
             campos["representacao"] = representacao
+        campos["parcelas_atraso"] = parcelas_normalizadas or None
         if parcelas_normalizadas:
             campos["parcelas_atraso"] = parcelas_normalizadas
 
@@ -733,6 +734,9 @@ def _persist_rows(
             dias_entrada = dias_calculado
         elif dias_calculado is not None:
             dias_entrada = max(dias_entrada, dias_calculado)
+
+        campos["dias_em_atraso"] = dias_entrada
+
         if dias_entrada is not None:
             campos["dias_em_atraso"] = dias_entrada
 

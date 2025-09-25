@@ -63,6 +63,73 @@ def test_migrar_tratamentos(client: TestClient):
     assert first["dt_situacao_atual"] == hoje.isoformat()
 
 
+def test_migrar_inclui_planos_com_diferentes_situacoes(client: TestClient):
+    hoje = date.today()
+    with SessionLocal() as db:
+        planos = [
+            Plan(
+                numero_plano="PEND001",
+                situacao_atual="P.RESC.",
+                saldo=1000.0,
+                status=PlanStatus.PASSIVEL_RESC,
+                razao_social="EMPRESA PENDENTE",
+            ),
+            Plan(
+                numero_plano="RESC001",
+                situacao_atual="RESCINDIDO",
+                saldo=2000.0,
+                status=PlanStatus.RESCINDIDO,
+                razao_social="EMPRESA RESCINDIDA",
+                data_rescisao=hoje,
+            ),
+            Plan(
+                numero_plano="LIQ001",
+                situacao_atual="LIQUIDADO",
+                saldo=3000.0,
+                status=PlanStatus.LIQUIDADO,
+                razao_social="EMPRESA LIQUIDADA",
+            ),
+            Plan(
+                numero_plano="GRDE001",
+                situacao_atual="GRDE Emitida",
+                saldo=4000.0,
+                status=PlanStatus.NAO_RESCINDIDO,
+                razao_social="EMPRESA GRDE",
+            ),
+            Plan(
+                numero_plano="ESP001",
+                situacao_atual="Sit especial",
+                saldo=5000.0,
+                status=PlanStatus.ESPECIAL,
+                razao_social="EMPRESA ESPECIAL",
+            ),
+        ]
+        db.add_all(planos)
+        db.commit()
+
+    response = client.post("/tratamentos/migrar")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["criados"] == len(planos)
+
+    with SessionLocal() as db:
+        tratamentos = (
+            db.query(TreatmentPlan)
+            .order_by(TreatmentPlan.numero_plano.asc())
+            .all()
+        )
+
+    assert len(tratamentos) == len(planos)
+    status_map = {trat.numero_plano: trat for trat in tratamentos}
+
+    assert status_map["PEND001"].status == "pendente"
+    assert status_map["RESC001"].status == "rescindido"
+    assert status_map["RESC001"].rescisao_data == hoje
+    assert status_map["LIQ001"].status == PlanStatus.LIQUIDADO.value
+    assert status_map["GRDE001"].status == PlanStatus.NAO_RESCINDIDO.value
+    assert status_map["ESP001"].status == PlanStatus.ESPECIAL.value
+
+
 def test_tratamento_notepad_endpoint(client: TestClient):
     with SessionLocal() as db:
         plano = Plan(

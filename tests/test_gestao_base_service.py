@@ -2,7 +2,7 @@ import pytest
 from typing import Optional
 
 from sirep.domain.enums import PlanStatus
-from sirep.domain.models import Event, Plan
+from sirep.domain.models import DiscardedPlan, Event, Plan
 from sirep.infra.config import settings
 from sirep.infra.db import SessionLocal, init_db
 
@@ -24,6 +24,7 @@ class _Collector:
 def _reset_db() -> None:
     init_db()
     with SessionLocal() as db:
+        db.query(DiscardedPlan).delete()
         db.query(Event).delete()
         db.query(Plan).delete()
         db.commit()
@@ -68,6 +69,75 @@ def test_gestao_base_maps_status_and_inscricao(monkeypatch):
         assert plan.representacao == "12.345.678/0001-90"
         assert plan.razao_social == "Empresa Especial"
         assert plan.resolucao == "123/45"
+
+
+def test_gestao_base_real_capture_registra_ocorrencias(monkeypatch):
+    _reset_db()
+    monkeypatch.setattr(settings, "DRY_RUN", False)
+
+    data = GestaoBaseData(
+        rows=[
+            PlanRowEnriched(
+                numero="PLN_SPECIAL",
+                dt_propost="01/02/2024",
+                tipo="PR1",
+                situac="SIT. ESPECIAL (Portal PO)",
+                resoluc="",
+                razao_social="Empresa Especial",
+                saldo_total="10.000,00",
+                cnpj="11.222.333/0001-44",
+            ),
+            PlanRowEnriched(
+                numero="PLN_PASSIVO",
+                dt_propost="05/02/2024",
+                tipo="PR2",
+                situac="P.RESC.",
+                resoluc="",
+                razao_social="Empresa Passiva",
+                saldo_total="2.500,00",
+                cnpj="55.666.777/0001-88",
+            ),
+            PlanRowEnriched(
+                numero="PLN_GRDE",
+                dt_propost="10/02/2024",
+                tipo="PR3",
+                situac="GRDE Emitida",
+                resoluc="",
+                razao_social="Empresa GRDE",
+                saldo_total="",
+                cnpj="22.333.444/0001-55",
+            ),
+            PlanRowEnriched(
+                numero="PLN_LIQ",
+                dt_propost="12/02/2024",
+                tipo="PR4",
+                situac="Liquidado",
+                resoluc="",
+                razao_social="Empresa Liquidada",
+                saldo_total="5.500,00",
+                cnpj="77.888.999/0001-00",
+            ),
+        ],
+        raw_lines=[],
+        portal_po=[],
+        descartados_974=0,
+    )
+
+    resultado = _run_service(monkeypatch, data)
+
+    assert resultado["importados"] == 4
+
+    with SessionLocal() as db:
+        ocorrencias = db.query(DiscardedPlan).all()
+
+    assert len(ocorrencias) == 3
+    encontrados = {occ.numero_plano: occ for occ in ocorrencias}
+    assert set(encontrados) == {"PLN_SPECIAL", "PLN_GRDE", "PLN_LIQ"}
+    assert encontrados["PLN_SPECIAL"].situacao.upper().startswith("SIT")
+    assert encontrados["PLN_LIQ"].situacao.upper().startswith("LIQ")
+    assert encontrados["PLN_GRDE"].situacao.upper().startswith("GRDE")
+    assert encontrados["PLN_GRDE"].saldo is None
+    assert encontrados["PLN_SPECIAL"].cnpj == "11.222.333/0001-44"
 
 
 def test_gestao_base_preserves_existing_plan_fields(monkeypatch):

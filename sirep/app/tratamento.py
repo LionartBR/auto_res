@@ -6,6 +6,7 @@ import random
 import re
 import string
 import threading
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, List, Optional, Literal, Sequence
 
@@ -246,11 +247,23 @@ class TratamentoService(AsyncLoopMixin):
                     except ValueError:
                         plan_status = None
 
-                should_queue = plan_status in {
-                    PlanStatus.PASSIVEL_RESC,
+                situacao_status = self._status_por_situacao(plan.situacao_atual)
+                if plan_status is None or plan_status in {
                     PlanStatus.NOVO,
                     PlanStatus.SEM_TRATAMENTO,
-                }
+                }:
+                    plan_status = situacao_status
+                if not status_raw:
+                    status_raw = (
+                        plan_status.value
+                        if plan_status is not None
+                        else situacao_status.value
+                    )
+
+                should_queue = (
+                    plan_status == PlanStatus.PASSIVEL_RESC
+                    or situacao_status == PlanStatus.PASSIVEL_RESC
+                )
 
                 if plan_status == PlanStatus.RESCINDIDO:
                     treatment.status = "rescindido"
@@ -261,9 +274,9 @@ class TratamentoService(AsyncLoopMixin):
                     PlanStatus.NAO_RESCINDIDO,
                     PlanStatus.ESPECIAL,
                 }:
-                    treatment.status = status_raw
-                elif not should_queue and status_raw:
-                    treatment.status = status_raw
+                    treatment.status = status_raw or plan.situacao_atual or "ignorado"
+                elif not should_queue:
+                    treatment.status = status_raw or plan.situacao_atual or "ignorado"
 
                 if plan.data_rescisao and treatment.rescisao_data is None:
                     treatment.rescisao_data = plan.data_rescisao
@@ -330,21 +343,44 @@ class TratamentoService(AsyncLoopMixin):
         return digits or None
 
     @staticmethod
-    def _status_por_situacao(situacao: str | None) -> PlanStatus:
-        texto = (situacao or "").strip().upper()
-        if not texto:
+    def _normalizar_situacao(situacao: str | None) -> str:
+        if not situacao:
+            return ""
+        texto = unicodedata.normalize("NFKD", situacao)
+        texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+        texto = re.sub(r"[\s._\-/]", "", texto)
+        return texto.upper()
+
+    @classmethod
+    def _situacao_passivel_rescisao(
+        cls, situacao: str | None, *, normalizado: str | None = None
+    ) -> bool:
+        if normalizado is None:
+            normalizado = cls._normalizar_situacao(situacao)
+        if not normalizado:
+            return False
+        if normalizado.startswith("PRESC"):
+            return True
+        if "PASSIVEL" in normalizado and "RESC" in normalizado:
+            return True
+        return False
+
+    @classmethod
+    def _status_por_situacao(cls, situacao: str | None) -> PlanStatus:
+        normalizado = cls._normalizar_situacao(situacao)
+        if not normalizado:
+            return PlanStatus.SEM_TRATAMENTO
+        if cls._situacao_passivel_rescisao(situacao, normalizado=normalizado):
             return PlanStatus.PASSIVEL_RESC
-        if texto.startswith("P.RESC") or texto.startswith("PRESC"):
-            return PlanStatus.PASSIVEL_RESC
-        if "ESPECIAL" in texto:
-            return PlanStatus.ESPECIAL
-        if "LIQ" in texto:
-            return PlanStatus.LIQUIDADO
-        if "GRDE" in texto:
-            return PlanStatus.NAO_RESCINDIDO
-        if texto.startswith("RESC"):
+        if normalizado.startswith("RESC"):
             return PlanStatus.RESCINDIDO
-        return PlanStatus.PASSIVEL_RESC
+        if "ESPECIAL" in normalizado:
+            return PlanStatus.ESPECIAL
+        if normalizado.startswith("LIQ"):
+            return PlanStatus.LIQUIDADO
+        if "GRDE" in normalizado:
+            return PlanStatus.NAO_RESCINDIDO
+        return PlanStatus.SEM_TRATAMENTO
 
     # ---- controle de execução ----
     def iniciar(self) -> None:

@@ -346,3 +346,61 @@ def test_migrar_nao_inicia_sem_iniciar(monkeypatch):
         )
         assert novos
         assert all(trat.status == "pendente" for trat in novos)
+
+
+def test_migrar_ignora_planos_nao_passiveis():
+    reset_db()
+
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="IGN001",
+            situacao_atual="LIQUIDADO",
+            saldo=1234.56,
+            status=PlanStatus.LIQUIDADO,
+            razao_social="EMPRESA IGNORADA",
+        )
+        db.add(plano)
+        db.commit()
+        plano_id = plano.id
+
+    service = TratamentoService()
+    created_ids = service.migrar_planos()
+    assert created_ids
+
+    status = service.status()
+    assert status["fila"] == []
+
+    with SessionLocal() as db:
+        tratamento = (
+            db.query(TreatmentPlan)
+            .filter(TreatmentPlan.plan_id == plano_id)
+            .one()
+        )
+        assert tratamento.status == PlanStatus.LIQUIDADO
+
+
+def test_migrar_considera_situacao_passivel_para_fila():
+    reset_db()
+
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="PAS001",
+            situacao_atual="P. RESCISAO",
+            saldo=9876.54,
+            status=PlanStatus.NOVO,
+            razao_social="EMPRESA PASSIVEL",
+        )
+        db.add(plano)
+        db.commit()
+
+    service = TratamentoService()
+    created_ids = service.migrar_planos()
+    assert created_ids
+
+    status = service.status()
+    assert set(status["fila"]) == set(created_ids)
+
+    with SessionLocal() as db:
+        tratamento = db.get(TreatmentPlan, created_ids[0])
+        assert tratamento is not None
+        assert tratamento.status == "pendente"

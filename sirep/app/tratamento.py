@@ -265,6 +265,11 @@ class TratamentoService(AsyncLoopMixin):
                     or situacao_status == PlanStatus.PASSIVEL_RESC
                 )
 
+                if should_queue and plan_status != PlanStatus.PASSIVEL_RESC:
+                    plan_status = PlanStatus.PASSIVEL_RESC
+                    plan.status = plan_status.value
+                    status_raw = plan.status
+
                 if plan_status == PlanStatus.RESCINDIDO:
                     treatment.status = "rescindido"
                     if plan.data_rescisao:
@@ -273,7 +278,7 @@ class TratamentoService(AsyncLoopMixin):
                     PlanStatus.LIQUIDADO,
                     PlanStatus.NAO_RESCINDIDO,
                     PlanStatus.ESPECIAL,
-                }:
+                } and not should_queue:
                     treatment.status = status_raw or plan.situacao_atual or "ignorado"
                 elif not should_queue:
                     treatment.status = status_raw or plan.situacao_atual or "ignorado"

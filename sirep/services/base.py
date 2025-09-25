@@ -93,7 +93,6 @@ def run_step_job(
             resolved_job_name: Optional[str] = job_name.name
         else:
             resolved_job_name = job_name
-        default_job_name = step.name if isinstance(step, Step) else str(step)
         final_job_name = resolved_job_name or step.name
         job = jobs.start(
             job_name=final_job_name,

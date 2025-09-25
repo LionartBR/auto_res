@@ -159,8 +159,10 @@ def test_migrar_materializa_planos_de_ocorrencias(client: TestClient):
         )
 
     assert plan.status == PlanStatus.RESCINDIDO
+    assert plan.data_rescisao == hoje
     assert plan.numero_inscricao == "12345678000190"
     assert tratamento.status == "rescindido"
+    assert tratamento.rescisao_data == hoje
 
     status_body = client.get("/tratamentos/status").json()
     numeros = {plano["numero_plano"] for plano in status_body["planos"]}

@@ -299,15 +299,19 @@ class TratamentoService(AsyncLoopMixin):
 
             campos: dict[str, Any] = {}
             situacao = (ocorrencia.situacao or "").strip()
+            status: Optional[PlanStatus] = None
             if situacao:
                 campos["situacao_atual"] = situacao
-                campos["status"] = self._status_por_situacao(situacao)
+                status = self._status_por_situacao(situacao)
+                campos["status"] = status
             if ocorrencia.tipo:
                 campos["tipo"] = ocorrencia.tipo
             if ocorrencia.saldo is not None:
                 campos["saldo"] = ocorrencia.saldo
             if ocorrencia.dt_situacao_atual:
                 campos["dt_situacao_atual"] = ocorrencia.dt_situacao_atual
+                if status == PlanStatus.RESCINDIDO:
+                    campos["data_rescisao"] = ocorrencia.dt_situacao_atual
 
             representacao = (ocorrencia.cnpj or "").strip()
             inscricao = self._somente_digitos(representacao)

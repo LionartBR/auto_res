@@ -24,6 +24,80 @@
     activeSubtab: 'planos',
   };
 
+  function parseVencimento(raw) {
+    const texto = String(raw ?? '').trim();
+    if (!texto) {
+      return null;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+      const [ano, mes, dia] = texto.split('-').map((value) => Number.parseInt(value, 10));
+      if (Number.isFinite(ano) && Number.isFinite(mes) && Number.isFinite(dia)) {
+        return new Date(Date.UTC(ano, mes - 1, dia));
+      }
+      return null;
+    }
+
+    const match = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) {
+      return null;
+    }
+
+    const [, dia, mes, ano] = match;
+    const diaNum = Number.parseInt(dia, 10);
+    const mesNum = Number.parseInt(mes, 10);
+    const anoNum = Number.parseInt(ano, 10);
+    if (Number.isFinite(diaNum) && Number.isFinite(mesNum) && Number.isFinite(anoNum)) {
+      return new Date(Date.UTC(anoNum, mesNum - 1, diaNum));
+    }
+    return null;
+  }
+
+  function diffDiasHoje(data) {
+    if (!(data instanceof Date) || Number.isNaN(data.valueOf())) {
+      return null;
+    }
+
+    const agora = new Date();
+    const hojeUtc = Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate());
+    const alvoUtc = Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate());
+    const diff = hojeUtc - alvoUtc;
+    if (diff <= 0) {
+      return 0;
+    }
+    return Math.floor(diff / 86_400_000);
+  }
+
+  function calcularDiasEmAtraso(plano) {
+    const parcelas = Array.isArray(plano?.parcelas_atraso) ? plano.parcelas_atraso : [];
+    let maiorAtraso = null;
+
+    parcelas.forEach((parcela) => {
+      if (!parcela) {
+        return;
+      }
+      const vencimento =
+        parseVencimento(parcela.vencimento) || parseVencimento(parcela.vencimento_texto);
+      if (!vencimento) {
+        return;
+      }
+      const dias = diffDiasHoje(vencimento);
+      if (dias === null) {
+        return;
+      }
+      if (maiorAtraso === null || dias > maiorAtraso) {
+        maiorAtraso = dias;
+      }
+    });
+
+    if (maiorAtraso !== null) {
+      return maiorAtraso;
+    }
+
+    const fallback = Number.parseInt(plano?.dias_em_atraso ?? '', 10);
+    return Number.isFinite(fallback) ? fallback : null;
+  }
+
   function setBar(percentual, estado) {
     if (!el.barTotal || !el.lblTotal) {
       return;
@@ -111,12 +185,13 @@
       const cnpjCell = cnpjValue
         ? `<a class="copy" data-copy="${cnpjValue}" data-copy-type="cnpj" href="#">${cnpjValue}</a>`
         : '';
+      const diasAtraso = calcularDiasEmAtraso(plano);
       tr.innerHTML = `
         <td><a class="copy" data-copy="${plano.numero_plano}" href="#">${plano.numero_plano || ''}</a></td>
         <td>${cnpjCell}</td>
         <td>${plano.situacao_atual || ''}</td>
         <td>${plano.tipo || ''}</td>
-        <td class="right">${plano.dias_em_atraso ?? ''}</td>
+        <td class="right">${diasAtraso ?? ''}</td>
         <td class="right">${fmtMoney(plano.saldo)}</td>
         <td>${formatDateBR(plano.dt_situacao_atual)}</td>
       `;

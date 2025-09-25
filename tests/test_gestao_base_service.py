@@ -240,17 +240,17 @@ def test_gestao_base_persiste_parcelas_e_dias_em_atraso(monkeypatch):
     with SessionLocal() as db:
         plan = db.query(Plan).filter_by(numero_plano="PLN_ATRASO").one()
 
-    assert plan.dias_em_atraso == 106
+    assert plan.dias_em_atraso == 137
     assert plan.parcelas_atraso is not None
     assert len(plan.parcelas_atraso) == 3
     parcelas = plan.parcelas_atraso
-    assert parcelas[0]["parcela"] == "101"
-    assert parcelas[0]["vencimento"] == "2024-08-01"
-    assert parcelas[0]["dias_em_atraso"] == 45
-    assert parcelas[1]["parcela"] == "102"
-    assert parcelas[1]["dias_em_atraso"] == 76
-    assert parcelas[2]["parcela"] == "103"
-    assert parcelas[2]["dias_em_atraso"] == 106
+    assert parcelas[0]["parcela"] == "104"
+    assert parcelas[0]["vencimento"] == "2024-05-01"
+    assert parcelas[1]["parcela"] == "103"
+    assert parcelas[1]["vencimento"] == "2024-06-01"
+    assert parcelas[2]["parcela"] == "102"
+    assert parcelas[2]["vencimento"] == "2024-07-01"
+    assert "dias_em_atraso" not in parcelas[0]
 
 
 def test_gestao_base_limpa_parcelas_em_atraso_quando_regulariza(monkeypatch):

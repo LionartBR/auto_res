@@ -103,12 +103,16 @@ def _parse_vencimento(raw: Any) -> tuple[Optional[date], Optional[str]]:
         return raw.date(), raw.date().isoformat()
     if isinstance(raw, date):
         return raw, raw.isoformat()
+
     texto = str(raw or "").strip()
     if not texto:
         return None, None
-    parsed = parse_date_any(texto)
-    if parsed is None:
+
+    try:
+        parsed = datetime.strptime(texto, "%d/%m/%Y").date()
+    except ValueError:
         return None, texto
+
     return parsed, texto
 
 
@@ -126,10 +130,12 @@ def _split_parcela_string(texto: str) -> tuple[Optional[str], Optional[str], Opt
 def _normalize_parcelas_atraso(
     parcelas: Optional[Iterable[Any]],
     *,
-    referencia: date,
+    referencia: Optional[date] = None,
 ) -> tuple[list[dict[str, Any]], Optional[int]]:
     if not parcelas:
         return ([], None)
+
+    referencia = referencia or date.today()
 
     registros: list[tuple[Optional[date], int, dict[str, Any], Optional[int]]] = []
 
@@ -192,7 +198,6 @@ def _normalize_parcelas_atraso(
             delta = (referencia - vencimento).days
             if delta >= 0:
                 dias_atraso = delta
-                entrada["dias_em_atraso"] = delta
 
         # Remove campos vazios para evitar registros inúteis
         entrada = {chave: valor for chave, valor in entrada.items() if valor not in (None, "")}
@@ -206,11 +211,10 @@ def _normalize_parcelas_atraso(
 
     registros.sort(
         key=lambda item: (
-            item[0] is not None,
-            item[0] or date.min,
-            -item[1],
-        ),
-        reverse=True,
+            item[0] is None,
+            item[0] or date.max,
+            item[1],
+        )
     )
 
     selecionados: list[dict[str, Any]] = []
@@ -729,16 +733,7 @@ def _persist_rows(
         if parcelas_normalizadas:
             campos["parcelas_atraso"] = parcelas_normalizadas
 
-        dias_entrada = row.dias_atraso
-        if dias_entrada is None:
-            dias_entrada = dias_calculado
-        elif dias_calculado is not None:
-            dias_entrada = max(dias_entrada, dias_calculado)
-
-        campos["dias_em_atraso"] = dias_entrada
-
-        if dias_entrada is not None:
-            campos["dias_em_atraso"] = dias_entrada
+        campos["dias_em_atraso"] = dias_calculado
 
         status = _infer_plan_status(situacao)
         if status is not None:

@@ -898,7 +898,6 @@ class GestaoBaseService:
             data = collector.collect(progress_callback)
             resultado = _persist_rows(context, data, progress_callback)
             summary = _format_summary(resultado)
-            summary = f"{resultado['importados']} planos"
             return StepJobOutcome(data=resultado, info_update={"summary": summary})
 
         return run_step_job(step=Step.ETAPA_1, job_name=Step.ETAPA_1, callback=_run)

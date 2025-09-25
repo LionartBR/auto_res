@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from typing import Optional
 
 from sirep.domain.enums import PlanStatus
@@ -190,6 +191,137 @@ def test_gestao_base_preserves_existing_plan_fields(monkeypatch):
         assert plan.saldo == pytest.approx(1234.56)
         assert plan.razao_social == "Nova Empresa"
         assert plan.dt_proposta.isoformat() == "2024-08-05"
+
+
+def test_gestao_base_persiste_parcelas_e_dias_em_atraso(monkeypatch):
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = datetime(2024, 9, 15, 12, 0, tzinfo=timezone.utc)
+            if tz is None:
+                return base
+            return base.astimezone(tz)
+
+        @classmethod
+        def utcnow(cls):
+            return cls.now(timezone.utc)
+
+    monkeypatch.setattr("sirep.services.gestao_base.datetime", _FixedDatetime)
+
+    _reset_db()
+
+    data = GestaoBaseData(
+        rows=[
+            PlanRowEnriched(
+                numero="PLN_ATRASO",
+                dt_propost="01/03/2024",
+                tipo="PR1",
+                situac="P.RESC.",
+                resoluc="",
+                razao_social="Empresa Inadimplente",
+                saldo_total="2.000,00",
+                cnpj="00.111.222/0001-33",
+                parcelas_atraso=[
+                    {"parcela": "104", "valor": "700,00", "vencimento": "01/05/2024"},
+                    {"parcela": "103", "valor": "700,00", "vencimento": "01/06/2024"},
+                    {"parcela": "102", "valor": "700,00", "vencimento": "01/07/2024"},
+                    {"parcela": "101", "valor": "700,00", "vencimento": "01/08/2024"},
+                ],
+            )
+        ],
+        raw_lines=[],
+        portal_po=[],
+        descartados_974=0,
+    )
+
+    resultado = _run_service(monkeypatch, data)
+    assert resultado["importados"] == 1
+
+    with SessionLocal() as db:
+        plan = db.query(Plan).filter_by(numero_plano="PLN_ATRASO").one()
+
+    assert plan.dias_em_atraso == 106
+    assert plan.parcelas_atraso is not None
+    assert len(plan.parcelas_atraso) == 3
+    parcelas = plan.parcelas_atraso
+    assert parcelas[0]["parcela"] == "101"
+    assert parcelas[0]["vencimento"] == "2024-08-01"
+    assert parcelas[0]["dias_em_atraso"] == 45
+    assert parcelas[1]["parcela"] == "102"
+    assert parcelas[1]["dias_em_atraso"] == 76
+    assert parcelas[2]["parcela"] == "103"
+    assert parcelas[2]["dias_em_atraso"] == 106
+
+
+def test_gestao_base_limpa_parcelas_em_atraso_quando_regulariza(monkeypatch):
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: Optional[timezone] = None):  # type: ignore[override]
+            base = datetime(2024, 9, 15, 12, 0, tzinfo=timezone.utc)
+            if tz is None:
+                return base
+            return base.astimezone(tz)
+
+        @classmethod
+        def utcnow(cls):  # pragma: no cover - compat
+            return cls.now(timezone.utc)
+
+    monkeypatch.setattr("sirep.services.gestao_base.datetime", _FixedDatetime)
+
+    _reset_db()
+
+    dados_iniciais = GestaoBaseData(
+        rows=[
+            PlanRowEnriched(
+                numero="PLN_REGULARIZA",
+                dt_propost="01/03/2024",
+                tipo="PR1",
+                situac="P.RESC.",
+                resoluc="",
+                razao_social="Empresa Inadimplente",
+                saldo_total="2.000,00",
+                cnpj="00.111.222/0001-33",
+                parcelas_atraso=[
+                    {"parcela": "104", "valor": "700,00", "vencimento": "01/05/2024"},
+                    {"parcela": "103", "valor": "700,00", "vencimento": "01/06/2024"},
+                    {"parcela": "102", "valor": "700,00", "vencimento": "01/07/2024"},
+                ],
+            )
+        ],
+        raw_lines=[],
+        portal_po=[],
+        descartados_974=0,
+    )
+
+    _run_service(monkeypatch, dados_iniciais)
+
+    dados_regularizado = GestaoBaseData(
+        rows=[
+            PlanRowEnriched(
+                numero="PLN_REGULARIZA",
+                dt_propost="01/03/2024",
+                tipo="PR1",
+                situac="REGULAR",
+                resoluc="",
+                razao_social="Empresa Inadimplente",
+                saldo_total="2.000,00",
+                cnpj="00.111.222/0001-33",
+                parcelas_atraso=[],
+                dias_atraso=None,
+            )
+        ],
+        raw_lines=[],
+        portal_po=[],
+        descartados_974=0,
+    )
+
+    _run_service(monkeypatch, dados_regularizado)
+
+    with SessionLocal() as db:
+        plan = db.query(Plan).filter_by(numero_plano="PLN_REGULARIZA").one()
+
+    assert plan.parcelas_atraso is None
+    assert plan.dias_em_atraso is None
 
 
 def test_collector_persists_provided_password(monkeypatch):

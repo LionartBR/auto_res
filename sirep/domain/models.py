@@ -24,6 +24,7 @@ class Plan(Base):
     situacao_atual = Column(String(32), nullable=True)
     situacao_anterior = Column(String(32), nullable=True)
     dias_em_atraso = Column(Integer, nullable=True)
+    parcelas_atraso = Column(MutableList.as_mutable(JSON), nullable=True)
     tipo = Column(String(8), nullable=True)
     dt_situacao_atual = Column(Date, nullable=True)
     dt_proposta = Column(Date, nullable=True)

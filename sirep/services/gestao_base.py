@@ -82,6 +82,148 @@ def parse_money_brl(raw: str | None) -> float:
     return -valor if negativo else valor
 
 
+# --------------------- Parcelas em atraso helpers ---------------------------
+
+
+def _first_non_empty(mapping: dict[str, Any], keys: Iterable[str]) -> Optional[str]:
+    for key in keys:
+        if key not in mapping:
+            continue
+        raw = mapping.get(key)
+        if raw is None:
+            continue
+        texto = str(raw).strip()
+        if texto:
+            return texto
+    return None
+
+
+def _parse_vencimento(raw: Any) -> tuple[Optional[date], Optional[str]]:
+    if isinstance(raw, datetime):
+        return raw.date(), raw.date().isoformat()
+    if isinstance(raw, date):
+        return raw, raw.isoformat()
+    texto = str(raw or "").strip()
+    if not texto:
+        return None, None
+    parsed = parse_date_any(texto)
+    if parsed is None:
+        return None, texto
+    return parsed, texto
+
+
+def _split_parcela_string(texto: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    partes = [p.strip() for p in re.split(r"\s{2,}", texto.strip()) if p.strip()]
+    if not partes:
+        return (None, None, None)
+    if len(partes) == 1:
+        return (partes[0], None, None)
+    if len(partes) == 2:
+        return (partes[0], partes[1], None)
+    return (partes[0], partes[1], partes[-1])
+
+
+def _normalize_parcelas_atraso(
+    parcelas: Optional[Iterable[Any]],
+    *,
+    referencia: date,
+) -> tuple[list[dict[str, Any]], Optional[int]]:
+    if not parcelas:
+        return ([], None)
+
+    registros: list[tuple[Optional[date], int, dict[str, Any], Optional[int]]] = []
+
+    for idx, item in enumerate(parcelas):
+        numero: Optional[str] = None
+        valor_raw: Optional[str] = None
+        venc_raw: Optional[Any] = None
+
+        if isinstance(item, dict):
+            numero = _first_non_empty(
+                item,
+                ("parcela", "numero", "sequencia", "id", "codigo"),
+            )
+            valor_candidate = _first_non_empty(
+                item,
+                ("valor", "valor_parcela", "valor_atraso", "valor_nominal"),
+            )
+            valor_raw = valor_candidate
+            venc_raw = item.get("vencimento")
+            if venc_raw is None:
+                venc_raw = item.get("dt_vencimento")
+            if venc_raw is None:
+                venc_raw = item.get("data_vencimento")
+            if venc_raw is None:
+                venc_raw = item.get("data")
+            if venc_raw is None:
+                venc_raw = item.get("venc")
+        elif isinstance(item, (list, tuple)):
+            numero = str(item[0]).strip() if len(item) >= 1 and str(item[0]).strip() else None
+            valor_raw = str(item[1]).strip() if len(item) >= 2 else None
+            venc_raw = item[2] if len(item) >= 3 else None
+        else:
+            texto = str(item or "").strip()
+            if not texto:
+                continue
+            numero, valor_raw, venc_string = _split_parcela_string(texto)
+            venc_raw = venc_string
+
+        vencimento, vencimento_texto = _parse_vencimento(venc_raw)
+        entrada: dict[str, Any] = {}
+        if numero:
+            entrada["parcela"] = numero
+
+        valor_texto = str(valor_raw or "").strip()
+        if valor_texto:
+            entrada["valor"] = valor_texto
+            valor_num = parse_money_brl(valor_texto)
+            if not math.isnan(valor_num):
+                entrada["valor_num"] = valor_num
+
+        if vencimento is not None:
+            entrada["vencimento"] = vencimento.isoformat()
+            if vencimento_texto and vencimento_texto != entrada["vencimento"]:
+                entrada["vencimento_texto"] = vencimento_texto
+        elif vencimento_texto:
+            entrada["vencimento"] = vencimento_texto
+
+        dias_atraso: Optional[int] = None
+        if vencimento is not None:
+            delta = (referencia - vencimento).days
+            if delta >= 0:
+                dias_atraso = delta
+                entrada["dias_em_atraso"] = delta
+
+        # Remove campos vazios para evitar registros inúteis
+        entrada = {chave: valor for chave, valor in entrada.items() if valor not in (None, "")}
+        if not entrada and dias_atraso is None:
+            continue
+
+        registros.append((vencimento, idx, entrada, dias_atraso))
+
+    if not registros:
+        return ([], None)
+
+    registros.sort(
+        key=lambda item: (
+            item[0] is not None,
+            item[0] or date.min,
+            -item[1],
+        ),
+        reverse=True,
+    )
+
+    selecionados: list[dict[str, Any]] = []
+    dias_coletados: list[int] = []
+    for vencimento, _, entrada, dias_atraso in registros[:3]:
+        selecionados.append(entrada)
+        if dias_atraso is not None:
+            dias_coletados.append(dias_atraso)
+
+    dias_total = max(dias_coletados) if dias_coletados else None
+    return (selecionados, dias_total)
+
+
 # ---------------------------- Modelos de Dados ------------------------------
 
 @dataclass(frozen=True)
@@ -104,6 +246,8 @@ class PlanRowEnriched:
     razao_social: str
     saldo_total: str
     cnpj: str
+    parcelas_atraso: Optional[List[dict[str, Any]]] = None
+    dias_atraso: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -557,6 +701,11 @@ def _persist_rows(
             "situacao_anterior": existente.situacao_atual if existente else None,
         }
 
+        parcelas_normalizadas, dias_calculado = _normalize_parcelas_atraso(
+            row.parcelas_atraso,
+            referencia=hoje,
+        )
+
         if situacao:
             campos["situacao_atual"] = situacao
         if tipo:
@@ -576,6 +725,16 @@ def _persist_rows(
         representacao = _representacao_value(inscricao_original, inscricao_canonica)
         if representacao is not None:
             campos["representacao"] = representacao
+        if parcelas_normalizadas:
+            campos["parcelas_atraso"] = parcelas_normalizadas
+
+        dias_entrada = row.dias_atraso
+        if dias_entrada is None:
+            dias_entrada = dias_calculado
+        elif dias_calculado is not None:
+            dias_entrada = max(dias_entrada, dias_calculado)
+        if dias_entrada is not None:
+            campos["dias_em_atraso"] = dias_entrada
 
         status = _infer_plan_status(situacao)
         if status is not None:

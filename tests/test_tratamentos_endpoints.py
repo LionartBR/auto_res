@@ -404,3 +404,34 @@ def test_migrar_considera_situacao_passivel_para_fila():
         tratamento = db.get(TreatmentPlan, created_ids[0])
         assert tratamento is not None
         assert tratamento.status == "pendente"
+
+
+def test_migrar_atualiza_status_para_passivel_quando_enfileira():
+    reset_db()
+
+    with SessionLocal() as db:
+        plano = Plan(
+            numero_plano="PASLIQ001",
+            situacao_atual="P. RESCISAO",
+            saldo=4321.0,
+            status=PlanStatus.LIQUIDADO,
+            razao_social="EMPRESA LIQUIDADA PASSIVEL",
+        )
+        db.add(plano)
+        db.commit()
+        plano_id = plano.id
+
+    service = TratamentoService()
+    created_ids = service.migrar_planos()
+    assert created_ids
+
+    status = service.status()
+    assert set(status["fila"]) == set(created_ids)
+
+    with SessionLocal() as db:
+        plano = db.get(Plan, plano_id)
+        tratamento = db.get(TreatmentPlan, created_ids[0])
+        assert plano is not None
+        assert plano.status == PlanStatus.PASSIVEL_RESC
+        assert tratamento is not None
+        assert tratamento.status == "pendente"

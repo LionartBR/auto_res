@@ -7,13 +7,14 @@ from datetime import date
 from sirep.app.api import app
 from sirep.app.tratamento import TratamentoService
 from sirep.domain.enums import PlanStatus
-from sirep.domain.models import Plan, TreatmentPlan
+from sirep.domain.models import DiscardedPlan, Plan, TreatmentPlan
 from sirep.infra.db import SessionLocal, init_db
 
 
 def reset_db() -> None:
     init_db()
     with SessionLocal() as db:
+        db.query(DiscardedPlan).delete()
         db.query(TreatmentPlan).delete()
         db.query(Plan).delete()
         db.commit()
@@ -61,6 +62,109 @@ def test_migrar_tratamentos(client: TestClient):
     assert first["tipo"] == "ADM"
     assert first["situacao_atual"] == "P.RESC."
     assert first["dt_situacao_atual"] == hoje.isoformat()
+
+
+def test_migrar_inclui_planos_com_diferentes_situacoes(client: TestClient):
+    hoje = date.today()
+    with SessionLocal() as db:
+        planos = [
+            Plan(
+                numero_plano="PEND001",
+                situacao_atual="P.RESC.",
+                saldo=1000.0,
+                status=PlanStatus.PASSIVEL_RESC,
+                razao_social="EMPRESA PENDENTE",
+            ),
+            Plan(
+                numero_plano="RESC001",
+                situacao_atual="RESCINDIDO",
+                saldo=2000.0,
+                status=PlanStatus.RESCINDIDO,
+                razao_social="EMPRESA RESCINDIDA",
+                data_rescisao=hoje,
+            ),
+            Plan(
+                numero_plano="LIQ001",
+                situacao_atual="LIQUIDADO",
+                saldo=3000.0,
+                status=PlanStatus.LIQUIDADO,
+                razao_social="EMPRESA LIQUIDADA",
+            ),
+            Plan(
+                numero_plano="GRDE001",
+                situacao_atual="GRDE Emitida",
+                saldo=4000.0,
+                status=PlanStatus.NAO_RESCINDIDO,
+                razao_social="EMPRESA GRDE",
+            ),
+            Plan(
+                numero_plano="ESP001",
+                situacao_atual="Sit especial",
+                saldo=5000.0,
+                status=PlanStatus.ESPECIAL,
+                razao_social="EMPRESA ESPECIAL",
+            ),
+        ]
+        db.add_all(planos)
+        db.commit()
+
+    response = client.post("/tratamentos/migrar")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["criados"] == len(planos)
+
+    with SessionLocal() as db:
+        tratamentos = (
+            db.query(TreatmentPlan)
+            .order_by(TreatmentPlan.numero_plano.asc())
+            .all()
+        )
+
+    assert len(tratamentos) == len(planos)
+    status_map = {trat.numero_plano: trat for trat in tratamentos}
+
+    assert status_map["PEND001"].status == "pendente"
+    assert status_map["RESC001"].status == "rescindido"
+    assert status_map["RESC001"].rescisao_data == hoje
+    assert status_map["LIQ001"].status == PlanStatus.LIQUIDADO.value
+    assert status_map["GRDE001"].status == PlanStatus.NAO_RESCINDIDO.value
+    assert status_map["ESP001"].status == PlanStatus.ESPECIAL.value
+
+
+def test_migrar_materializa_planos_de_ocorrencias(client: TestClient):
+    hoje = date.today()
+    with SessionLocal() as db:
+        ocorrencia = DiscardedPlan(
+            numero_plano="OCOR001",
+            situacao="RESCINDIDO",
+            cnpj="12.345.678/0001-90",
+            tipo="ADM",
+            saldo=1234.56,
+            dt_situacao_atual=hoje,
+        )
+        db.add(ocorrencia)
+        db.commit()
+
+    response = client.post("/tratamentos/migrar")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["criados"] == 1
+
+    with SessionLocal() as db:
+        plan = db.query(Plan).filter_by(numero_plano="OCOR001").one()
+        tratamento = (
+            db.query(TreatmentPlan)
+            .filter_by(numero_plano="OCOR001")
+            .one()
+        )
+
+    assert plan.status == PlanStatus.RESCINDIDO
+    assert plan.numero_inscricao == "12345678000190"
+    assert tratamento.status == "rescindido"
+
+    status_body = client.get("/tratamentos/status").json()
+    numeros = {plano["numero_plano"] for plano in status_body["planos"]}
+    assert "OCOR001" in numeros
 
 
 def test_tratamento_notepad_endpoint(client: TestClient):

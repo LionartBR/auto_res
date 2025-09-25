@@ -45,6 +45,10 @@ class PlanRepository:
         stmt = select(Plan).where(Plan.status == target_status)
         return list(self._db.scalars(stmt))
 
+    def list_all(self) -> list[Plan]:
+        stmt = select(Plan).order_by(Plan.id.asc())
+        return list(self._db.scalars(stmt))
+
     def set_status(self, plan: Plan, status: PlanStatus | str) -> None:
         plan.status = status.value if isinstance(status, PlanStatus) else str(status)
         self._db.flush([plan])
@@ -123,6 +127,10 @@ class OccurrenceRepository:
 
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    def list_all(self) -> list[DiscardedPlan]:
+        stmt = select(DiscardedPlan).order_by(DiscardedPlan.id.asc())
+        return list(self._db.scalars(stmt))
 
     def add(
         self,

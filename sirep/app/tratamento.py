@@ -29,7 +29,6 @@ from sirep.domain.logs import (
 from sirep.shared.config import DATE_DISPLAY_FORMAT
 from sirep.shared.fakes import (
     TIPOS_PARCELAMENTO,
-    TIPOS_REPRESENTACAO,
     gerar_bases,
     gerar_cnpjs,
     gerar_periodo,

@@ -7,42 +7,75 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="login-screen">
-  <main class="login-screen__content" aria-labelledby="loginTitle">
-    <form id="loginForm" class="login-card" data-redirect="index.html" novalidate>
-      <h2 id="loginTitle">SIREP 2.0</h2>
-      <p class="login-description">Acesse com a mesma senha do Rede Caixa.</p>
-      <div class="login-field">
-        <label for="loginUser">Matrícula</label>
-        <input
-          type="text"
-          id="loginUser"
-          name="username"
-          autocomplete="username"
-          placeholder="C123456"
-          required
-        />
-      </div>
-      <div class="login-field">
-        <label for="loginPassword">Senha</label>
-        <input
-          type="password"
-          id="loginPassword"
-          name="password"
-          class="with-icon"
-          autocomplete="current-password"
-          placeholder="Digite sua senha"
-          required
-        />
-      </div>
-      <p id="loginError" class="login-error" role="alert" aria-live="assertive" hidden></p>
-      <div class="login-actions">
-        <button type="submit" id="loginSubmit" class="primary login-submit">Entrar</button>
-      </div>
-      <footer class="login-footer" aria-label="Informações institucionais">
-        <p>CEFGD/RJ – Recuperação de Débitos do FGTS Perante o Empregador</p>
-      </footer>
-    </form>
-  </main>
+  <div id="loginOverlay" class="login-screen__overlay" aria-hidden="false">
+    <main class="login-screen__content" aria-labelledby="loginTitle">
+      <form id="loginForm" class="login-card" data-redirect="index.html" novalidate>
+        <header class="login-card__header">
+          <div class="login-card__logo" aria-hidden="true">
+            <span>S</span>
+          </div>
+          <div>
+            <p class="login-card__eyebrow">Acesso restrito</p>
+            <h1 id="loginTitle" class="login-card__title">SIREP 2.0</h1>
+          </div>
+        </header>
+
+        <p class="login-description">Informe sua matrícula Rede Caixa para liberar a execução da Gestão da Base.</p>
+
+        <div class="login-field login-field--icon">
+          <label for="loginUser">Matrícula</label>
+          <div class="login-field__control">
+            <span class="login-field__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" role="presentation">
+                <path d="M12 12.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Zm0 2.25c-3.93 0-7.25 2.28-7.25 5.2 0 .57.48 1.03 1.08 1.03h12.34c.6 0 1.08-.46 1.08-1.03 0-2.92-3.32-5.2-7.25-5.2Z"/>
+              </svg>
+            </span>
+            <input
+              type="text"
+              id="loginUser"
+              name="username"
+              autocomplete="username"
+              placeholder="C123456"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="login-field login-field--icon">
+          <label for="loginPassword">Senha</label>
+          <div class="login-field__control">
+            <span class="login-field__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false" role="presentation">
+                <path d="M7.5 11V8.75a4.5 4.5 0 1 1 9 0V11H19a1 1 0 0 1 1 1v7.25a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V12a1 1 0 0 1 1-1h2.5Zm2-.25V11h4v-.25a2 2 0 0 0-4 0ZM12 15.75a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/>
+              </svg>
+            </span>
+            <input
+              type="password"
+              id="loginPassword"
+              name="password"
+              autocomplete="current-password"
+              placeholder="Digite sua senha"
+              required
+            />
+          </div>
+        </div>
+
+        <p class="login-support" id="loginSupport">A senha é armazenada somente na memória da sessão atual.</p>
+
+        <p id="loginError" class="login-error" role="alert" aria-live="assertive" hidden></p>
+
+        <div class="login-actions">
+          <button type="submit" id="loginSubmit" class="primary login-submit">Entrar</button>
+          <a class="login-help" href="mailto:cefgd.rj@caixa.gov.br">Precisa de ajuda?</a>
+        </div>
+
+        <footer class="login-footer" aria-label="Informações institucionais">
+          <p>CEFGD/RJ – Recuperação de Débitos do FGTS Perante o Empregador</p>
+          <p>Uso exclusivo da equipe de Gestão da Base.</p>
+        </footer>
+      </form>
+    </main>
+  </div>
 
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>
